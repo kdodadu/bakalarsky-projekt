@@ -1,0 +1,4 @@
+# Protocol code hashes must be stable in a clean Windows checkout.
+*.py text eol=lf
+*.json text eol=lf
+*.txt text eol=lf

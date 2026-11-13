@@ -1,0 +1,15 @@
+﻿.venv/
+__pycache__/
+.venv-train/
+data/
+results/
+models/
+.env
+/scripts/train.py
+*.gguf
+*.safetensors
+*.tar
+*.zip
+*.log
+*.jsonl
+.env.*

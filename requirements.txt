@@ -1,0 +1,2 @@
+# Baseline: Python 3.13+ on Windows; standard library only.
+# No third-party Python packages are required. llama.cpp runs separately.
