@@ -1,2 +1,16 @@
-# Baseline: Python 3.13+ on Windows; standard library only.
-# No third-party Python packages are required. llama.cpp runs separately.
+# Training dependencies pinned from the working Windows/Python 3.14 .venv-train.
+# Baseline inference/reporting itself needs no third-party Python packages.
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128
+transformers==5.22.2
+peft==0.21.2
+accelerate==1.15.0
+bitsandbytes==0.50.2
+Pillow==13.0.0
+numpy==2.5.4
+safetensors==0.8.0
+huggingface-hub==2.4.0
+tokenizers==0.23.3
+Jinja2==3.1.6
