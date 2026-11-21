@@ -1,4 +1,4 @@
-"""Native model identity and fixed val compatibility checks; standard library only."""
+"""Native model identity checks; standard library only."""
 
 from datetime import datetime
 import hashlib
@@ -10,8 +10,31 @@ import struct
 import subprocess
 from urllib.parse import urlsplit
 
-from .data import image_candidates, local_path, select_records, sha256_file
-from .evaluation import evaluate
+from .data import local_path, sha256_file
+
+
+def experiment_identity(experiment):
+    """Keep all model/settings evidence, excluding descriptions and local launch locations."""
+    result = json.loads(json.dumps(experiment))
+    for key in ("capacity_validation_note", "revision_provenance", "historical_identity_note", "response_format_note"):
+        result.pop(key, None)
+    command = result.get("launch_command")
+    if command:
+        # Exact asset bytes are pinned separately. Moving an executable, weights,
+        # logs or endpoint does not change inference. Every other flag stays strict.
+        paths = {"--log-file", "-m", "--model", "--mmproj", "-hf", "--hf-repo", "--hf-file", "--host", "--port", "--alias", "-a"}
+        normalized, index = [], 1
+        while index < len(command):
+            token = command[index]
+            if token in paths:
+                index += 2
+            elif token == "--offline":
+                index += 1
+            else:
+                normalized.append(token)
+                index += 1
+        result["launch_command"] = normalized
+    return result
 
 
 def gguf_metadata(path):
@@ -142,7 +165,11 @@ def verify_model_server(config, server, root, saved_server=None):
     if image_processing:
         for flag,key in (("--image-min-tokens","image_min_tokens"),("--image-max-tokens","image_max_tokens")):
             if options.get(flag)!=str(image_processing[key]):
-                raise RuntimeError(f"Expected explicit {flag} {image_processing[key]}; capacity proof does not cover other image settings.")
+                raise RuntimeError(f"Expected explicit {flag} {image_processing[key]}; image processing differs from the experiment.")
+    expected_options = command_options(" ".join(experiment.get("launch_command", [])))
+    for flag in ("--device", "--gpu-layers", "--fit"):
+        if flag in expected_options and options.get(flag) != expected_options[flag]:
+            raise RuntimeError(f"Expected explicit {flag} {expected_options[flag]}; server placement/backend differs.")
     if any(option in options for option in ("--chat-template", "--chat-template-file", "--chat-template-kwargs")):
         raise RuntimeError("Custom chat template overrides are not allowed; use the native model template.")
     response_format = experiment.get("response_reasoning_format")
@@ -191,70 +218,3 @@ def verify_model_server(config, server, root, saved_server=None):
                   native_image_preprocessing="llama.cpp mtmd for this GGUF/mmproj; differs by architecture; see file metadata and /props",
                   template_source="embedded GGUF" if embedded else "native llama.cpp fallback for the loaded architecture")
     return server
-
-
-def validation_config(config, root):
-    result = json.loads(json.dumps(config))
-    spec = result["validation"]
-    result.update(split="val", annotations=spec["annotations"], expected_records=spec["groups"] * 2,
-                  annotations_sha256=sha256_file(local_path(root, spec["annotations"])))
-    return result
-
-
-def validation_manifest(config, root):
-    spec = config["validation"]
-    if spec["seed"] != 42 or spec["groups"] != 2:
-        raise ValueError("Compatibility subset is fixed: two linked val groups, seed=42.")
-    selection = select_records(local_path(root, spec["annotations"]), seed=42, split="val", groups=spec["groups"])
-    path = local_path(root, spec["prepared_manifest"])
-    prepared = json.loads(path.read_text(encoding="utf-8"))
-    if prepared["split"] != "val" or prepared["annotations_sha256"] != selection["annotations_sha256"]:
-        raise ValueError("Prepared val data does not match val.json.")
-    mapping = {r["annotation_index"]: r for r in prepared["records"]}
-    subset = json.loads((path.parent / "visualnews_subset.json").read_text(encoding="utf-8"))
-    visualnews = {r["id"]: r for r in subset["records"]}
-    selected = []
-    for expected in selection["records"]:
-        row = mapping.get(expected["annotation_index"])
-        if row is None or any(row.get(k) != v for k, v in expected.items()):
-            raise ValueError("Fixed val subset is missing from prepared val data; do not substitute test records.")
-        if row["caption"] != visualnews[row["id"]]["caption"]:
-            raise ValueError("Val caption/id mapping mismatch.")
-        if row["archive_member"] not in image_candidates(prepared["metadata_member"]["name"], visualnews[row["image_id"]]["image_path"]):
-            raise ValueError("Val image/image_id mapping mismatch.")
-        if sha256_file(local_path(root, row["image_path"])) != row["image_sha256"]:
-            raise ValueError("Val image missing or changed.")
-        selected.append(row)
-    images = {row["image_id"]: row for row in selected}
-    return path, {**prepared, **selection, "records": selected, "unique_images": len(images),
-                  "extracted_bytes": sum(row["image_bytes"] for row in images.values()),
-                  "prepared_source_manifest_sha256": sha256_file(path)}
-
-
-def require_validation(config, root, server):
-    """Compatibility gate, never a decision based on val accuracy."""
-    from .baseline import freeze_protocol, load_journal, protocols_match, server_signature
-    directory = local_path(root, config["validation"]["run_dir"])
-    if not (directory / "run.json").is_file():
-        raise RuntimeError("Run the fixed val smoke check before the full test.")
-    metadata = json.loads((directory / "run.json").read_text(encoding="utf-8"))
-    _, expected = validation_manifest(validation_config(config, root), root)
-    saved_server = metadata.get("server") or {}
-    same_server = (saved_server.get("identity") == server.get("identity")
-                   if server.get("identity") else
-                   server_signature(saved_server.get("props", {}).get("response", {}))
-                   == server_signature(server["props"]["response"]))
-    if (metadata["split"] != "val" or not protocols_match(metadata["protocol"], freeze_protocol(config, root))
-            or not same_server):
-        raise RuntimeError("Val check uses another model/protocol/server. Repeat smoke with this configuration.")
-    inputs = json.loads((directory / "input_manifest.json").read_text(encoding="utf-8"))
-    if inputs != expected:
-        raise RuntimeError("Val input snapshot differs from the fixed subset.")
-    records, _ = load_journal(directory / "predictions.jsonl", expected["records"], repair=False)
-    metrics = evaluate(records, len(expected["records"]))
-    if not metrics["complete"] or metrics["request_errors"]:
-        raise RuntimeError("Val compatibility check incomplete or contains request errors; inspect its saved responses.")
-    if metrics["valid_response_rate"] == 0:
-        raise RuntimeError("Val compatibility check has no exact MATCH/MISMATCH responses; fix the API response format before test. Saved INVALID answers remain unchanged.")
-    return {"run_dir": config["validation"]["run_dir"], "n_evaluated": len(records),
-            "invalid_responses": metrics["invalid_responses"], "policy": "Accuracy is not used for this gate; INVALID remains in metrics."}

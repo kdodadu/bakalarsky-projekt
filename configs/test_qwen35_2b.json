@@ -154,20 +154,6 @@
         },
         "n_ctx": 4352
       }
-    },
-    "capacity_validation_note": "Accepted native-count and RTX 4050 validation; separate from all historical 4096 runs. No accuracy-based tuning."
-  },
-  "validation": {
-    "annotations": "data/raw/newsclippings/val.json",
-    "prepared_manifest": "data/pilot/manifest.json",
-    "groups": 2,
-    "seed": 42,
-    "run_dir": "reports/val_qwen35_2b"
-  },
-  "capacity_preflight": {
-    "path": "data/capacity/qwen35_2b_counts.json",
-    "sha256": "ff11338a1762ac08dcd09c8f5efe3e0f71e450eb9e47685ecbf2b64086882270",
-    "output_tokens": 16,
-    "margin_tokens": 64
+    }
   }
 }

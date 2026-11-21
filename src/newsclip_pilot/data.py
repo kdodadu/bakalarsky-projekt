@@ -26,6 +26,13 @@ def local_path(root, value):
     return path
 
 
+def input_identity(manifest):
+    """Inference/label identity; storage paths, tar offsets and timestamps are provenance only."""
+    keys = ("annotation_index", "pair_index", "id", "image_id", "caption", "image_sha256", "true_label")
+    return {"split": manifest.get("split"), "annotations_sha256": manifest.get("annotations_sha256"),
+            "records": [{key: row.get(key) for key in keys} for row in manifest["records"]]}
+
+
 def select_test_records(path, seed=42, expected_count=7264):
     """Use every unique annotation in official order; never deduplicate caption ids."""
     return select_records(path, seed, expected_count, split="test")
@@ -282,7 +289,7 @@ def prepare(root, config, selection=None):
         target = output / "images" / f"{identifier}{PurePosixPath(member['name']).suffix.lower()}"
         # Recopy only the selected bytes; no image recompression or resizing.
         digest = copy_member(archive, member, target)
-        extracted[identifier] = {"image_path": target.relative_to(root).as_posix(), "image_sha256": digest,
+        extracted[identifier] = {"image_path": target.relative_to(root).as_posix() if target.is_relative_to(root) else str(target), "image_sha256": digest,
                                 "archive_member": member["name"], "image_bytes": member["size"]}
     for row in selection["records"]:
         caption = mapping[row["id"]]["caption"]

@@ -27,13 +27,6 @@
     }
   },
   "run_dir": "results/test_merged_balanced_lfm3_vl_2b",
-  "validation": {
-    "annotations": "data/raw/newsclippings/val.json",
-    "prepared_manifest": "data/pilot/manifest.json",
-    "groups": 2,
-    "seed": 42,
-    "run_dir": "reports/val_lfm3_vl_2b"
-  },
   "server_log": "logs/lfm3_vl_2b_server.log",
   "experiment": {
     "original_model_id": "LiquidAI/LFM3-VL-2B",
@@ -188,13 +181,6 @@
       "client_resize": null,
       "image_min_tokens": -1,
       "image_max_tokens": -1
-    },
-    "capacity_validation_note": "Accepted native-count and RTX 4050 validation; separate from all historical 4096 runs. No accuracy-based tuning."
-  },
-  "capacity_preflight": {
-    "path": "data/capacity/lfm3_vl_2b_counts.json",
-    "sha256": "47e2a2d0c780413154a8dcad152e3a9cc42477ccf37fef0d5fa292ee2f9cca58",
-    "output_tokens": 16,
-    "margin_tokens": 64
+    }
   }
 }

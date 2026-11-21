@@ -4,6 +4,7 @@ import csv
 import hashlib
 import io
 import sys
+from pathlib import Path
 
 from .baseline import MODEL_ALIASES, fingerprint, freeze_protocol, inspect_run, load_model_config, read_json
 from .data import local_path, sha256_file
@@ -73,7 +74,12 @@ def build_report(directory, config, root):
                  for row in manifest["records"]]
     if len(canonical) != 7264 or {row["annotation_index"] for row in canonical} != set(range(7264)):
         raise ValueError("Test input manifest is incomplete or contains duplicate indices.")
-    historical = read_json(directory / "metrics.json") if started else None
+    historical = None
+    if started and (directory / "metrics.json").is_file():
+        try:
+            historical = read_json(directory / "metrics.json")
+        except (OSError, ValueError):
+            print("WARNING: stored metrics snapshot unavailable; rebuilding scores from the response journal.", file=sys.stderr)
     differences = {key: {"historical": historical.get(key), "recomputed": value}
                    for key, value in metrics.items() if historical is not None and historical.get(key) != value}
     # Historical runs have no dedicated run ID. Derive a stable ID from the
@@ -82,7 +88,7 @@ def build_report(directory, config, root):
         "schema_version": SCHEMA_VERSION,
         "model": config["model_id"], "model_alias": metadata["config"]["model"] if started else config["model"],
         "source_run_id": f"{config['model_id']}@{metadata['created_at_utc']}" if started else None,
-        "source_run_directory": directory.relative_to(root).as_posix(),
+        "source_run_directory": directory.relative_to(root).as_posix() if directory.is_relative_to(root) else "<external>/" + directory.name,
         "source_run_created_at_utc": metadata["created_at_utc"] if started else None,
         "source_predictions_sha256": sha256_file(directory / "predictions.jsonl") if started else None,
         "dataset": "NewsCLIPpings", "variant": "merged_balanced", "split": "test",
@@ -96,17 +102,19 @@ def build_report(directory, config, root):
     }
 
 
-def write_report(directory, config, root):
+def write_report(directory, config, root, output_dir=None):
     report = build_report(directory, config, root)
-    write_json(root / "reports" / config["model_id"] / "metrics.json", report)
+    write_json((Path(output_dir) if output_dir else root / "reports") / config["model_id"] / "metrics.json", report)
     return report
 
 
-def compare_results(root):
+def compare_results(root, output_dir=None, data_paths=None):
     """Generate the same per-model report and one compact comparison, offline."""
     reports = []
+    destination = Path(output_dir) if output_dir else root / "reports"
     for model_id in MODEL_ALIASES:
         config = load_model_config(root, model_id=model_id)
+        config.update(data_paths or {})
         reports.append(build_report(local_path(root, config["run_dir"]), config, root))
     if len({r["input_composition_sha256"] for r in reports}) != 1:
         raise ValueError("Comparison input captions, image hashes, labels or annotation indices differ.")
@@ -127,14 +135,14 @@ def compare_results(root):
     columns = ("model", "status", "n_evaluated", "n_expected", "accuracy", "macro_f1", "valid_response_rate", "invalid_responses", "request_errors", "complete")
     rows = [{key: report[key] for key in columns} for report in reports]
     for report in reports:
-        write_json(root / "reports" / report["model"] / "metrics.json", report)
-    write_json(root / "reports/model_comparison.json", {"schema_version": SCHEMA_VERSION, "models": rows,
+        write_json(destination / report["model"] / "metrics.json", report)
+    write_json(destination / "model_comparison.json", {"schema_version": SCHEMA_VERSION, "models": rows,
                "protocol_comparison": comparison, "policy": reports[0]["policy"]})
     text = io.StringIO(newline="")
     writer = csv.DictWriter(text, fieldnames=columns)
     writer.writeheader()
     writer.writerows(rows)
-    write_text(root / "reports/model_comparison.csv", text.getvalue())
+    write_text(destination / "model_comparison.csv", text.getvalue())
     for row in rows:
         accuracy = "unknown" if row["accuracy"] is None else f"{row['accuracy']:.6f}"
         f1 = "unknown" if row["macro_f1"] is None else f"{row['macro_f1']:.6f}"
@@ -142,7 +150,7 @@ def compare_results(root):
     return reports
 
 
-def refresh_after_run(directory, config, root):
+def refresh_after_run(directory, config, root, output_dir=None):
     """Derived failures never affect the authoritative response journal/resume."""
     if config.get("split") != "test" or config.get("expected_records") != 7264:
         return
@@ -151,8 +159,8 @@ def refresh_after_run(directory, config, root):
         if directory.resolve() != local_path(root, config["run_dir"]):
             print("Reports skipped for an unselected run-dir; use report --run-dir explicitly.", file=sys.stderr)
             return
-        write_report(directory, config, root)
-        compare_results(root)
+        write_report(directory, config, root, output_dir)
+        compare_results(root, output_dir, {key: config[key] for key in ("annotations", "archive", "prepared_dir") if key in config})
     except Exception as exc:
         print(f"WARNING: derived reports could not be refreshed: {type(exc).__name__}: {exc}. "
               "Saved responses remain authoritative; resume will skip them. "

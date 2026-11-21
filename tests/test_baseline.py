@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+import hashlib
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -56,7 +57,8 @@ class ResumeTests(unittest.TestCase):
         (self.root / "image.jpg").write_bytes(b"\xff\xd8\xff fixture bytes, never sent to a server")
         self.rows = [{"annotation_index": i, "pair_index": i // 2, "id": i // 2 + 100,
                       "image_id": i // 2 + 100 if i % 2 == 0 else 1000 + i, "true_label": "MATCH" if i % 2 == 0 else "MISMATCH",
-                      "image_path": "image.jpg", "caption": f"Fixture caption {i}"} for i in range(4)]
+                      "image_path": "image.jpg", "caption": f"Fixture caption {i}",
+                      "image_sha256": hashlib.sha256((self.root / "image.jpg").read_bytes()).hexdigest()} for i in range(4)]
         self.metadata = {"expected_records": 4, "prompt": "Fixed fixture prompt.", "config": {
             "model": "fixture", "temperature": 0, "seed": 42, "max_tokens": 16,
             "repeat_penalty": 1, "chat_template_kwargs": {"enable_thinking": False}}}
@@ -256,36 +258,6 @@ class ResumeTests(unittest.TestCase):
             self.assertEqual(reports.call_count, 3)  # stopped run, resumed completion, completed resume
         self.assertEqual(len(load_journal(self.journal, self.rows)[0]), 4)
 
-    def test_run_automatically_checks_separate_val_before_test(self):
-        import newsclip_pilot.baseline as module
-        config={**self.metadata["config"],"split":"test","validation":{"run_dir":"val"}}
-        manifest={"records":self.rows}
-        path=self.root/"prepared.json";write_json(path,manifest)
-        protocol={"contract":{"prompt":self.metadata["prompt"]},"fingerprint":fingerprint({"prompt":self.metadata["prompt"]})}
-        test_client=FakeClient([response() for _ in self.rows])
-        val_client=FakeClient([response() for _ in self.rows])
-        with patch.object(module,"freeze_protocol",return_value=protocol), \
-             patch.object(module,"checked_manifest",return_value=(path,manifest)), \
-             patch.object(module,"check_server",side_effect=[(test_client,{}),(val_client,{})]) as probe, \
-             patch("newsclip_pilot.experiments.validation_config",return_value={**config,"split":"val"}), \
-             patch("newsclip_pilot.experiments.require_validation",return_value={"n_evaluated":4}) as gate:
-            self.assertEqual(run_baseline(self.root/"test",config,root=self.root),0)
-            self.assertEqual(gate.call_count,1)
-            self.assertEqual(len(val_client.calls),4)
-            self.assertEqual(len(test_client.calls),4)
-            self.assertEqual(run_baseline(self.root/"test",config,resume=True,root=self.root),0)
-            self.assertEqual(probe.call_count,2)
-        for directory in (self.root/"val",self.root/"test"):
-            self.assertEqual(len(load_journal(directory/"predictions.jsonl",self.rows)[0]),4)
-        stop=StopRequest()
-        interrupted={**config,"validation":{"run_dir":"val_interrupted"}}
-        client=FakeClient([response()],stop=stop)
-        with patch.object(module,"freeze_protocol",return_value=protocol), \
-             patch.object(module,"checked_manifest",return_value=(path,manifest)), \
-             patch.object(module,"check_server",side_effect=[(test_client,{}),(client,{})]), \
-             patch("newsclip_pilot.experiments.validation_config",return_value={**interrupted,"split":"val"}):
-            self.assertEqual(run_baseline(self.root/"interrupted",interrupted,root=self.root,stop_request=stop),130)
-        self.assertEqual((self.root/"interrupted/predictions.jsonl").read_bytes(),b"")
 
     def test_new_run_initializes_without_any_old_results(self):
         import newsclip_pilot.baseline as module
@@ -304,6 +276,58 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(metadata["n_completed"], 1)
         self.assertEqual(metadata["protocol"], protocol)
         self.assertNotIn("reference_pilot", metadata["config"])
+
+    def test_optional_smoke_uses_only_explicit_input_and_the_frozen_payload(self):
+        import newsclip_pilot.baseline as module
+        from newsclip_pilot.client import make_payload
+        client=FakeClient([response("MISMATCH")])
+        protocol={"contract":{"prompt":self.metadata["prompt"]}}
+        caption='A supplied caption with "quotes".'
+        before=self.journal.read_bytes()
+        with patch.object(module,"freeze_protocol",return_value=protocol), \
+             patch.object(module,"check_server",return_value=(client,{})) as server, \
+             patch.object(module,"checked_manifest",side_effect=AssertionError("No dataset for smoke")), \
+             patch("sys.stdout",new=io.StringIO()) as output:
+            self.assertEqual(module.smoke(self.metadata["config"],"image.jpg",caption,self.root),0)
+        expected=make_payload(self.metadata["config"],self.root/"image.jpg",
+                              self.metadata["prompt"]+'\n\nCaption: '+json.dumps(caption,ensure_ascii=False))
+        self.assertEqual(client.calls,[expected])
+        self.assertEqual(server.call_count,1)
+        self.assertEqual(json.loads(output.getvalue())["kind"],"optional_smoke_not_scored")
+        self.assertEqual(self.journal.read_bytes(),before)
+
+    def test_relocated_data_and_retired_diagnostics_preserve_only_same_inference(self):
+        import copy
+        import newsclip_pilot.baseline as module
+        manifest={"records":self.rows,"archive":{"path":"old/origin.tar","mtime_ns":1}}
+        path=self.root/"prepared.json";write_json(path,manifest)
+        config={**self.metadata["config"],"archive":"old/origin.tar","prepared_dir":"old",
+                "experiment":{"context_size":4352,"launch_command":["old/llama.exe","serve","-hf","repo:Q4_K_M","--ctx-size","4352","--device","Vulkan1","--log-file","old.log"]}}
+        old_contract={"prompt":self.metadata["prompt"],"experiment":config["experiment"],
+                      "orchestration_sha256":module.PRE_SIMPLIFICATION_HELPER_SHA256,
+                      "capacity_preflight":{"path":"missing-private-cache.json"}}
+        old={"contract":old_contract,"fingerprint":fingerprint(old_contract)}
+        moved=copy.deepcopy(config);moved["archive"]="new/origin.tar";moved["prepared_dir"]="new"
+        moved["experiment"]["launch_command"]=["new/llama.exe","serve","-m","new/model.gguf","--mmproj","new/mmproj.gguf","--ctx-size","4352","--device","Vulkan1","--log-file","new.log"]
+        new_contract={"prompt":self.metadata["prompt"],"experiment":moved["experiment"],"orchestration_sha256":"current-helper"}
+        current={"contract":new_contract,"fingerprint":fingerprint(new_contract)}
+        self.assertTrue(module.protocols_match(old,current))
+        directory=self.root/"portable";directory.mkdir()
+        module.initialize(directory,config,old,path,manifest,self.root)
+        metadata=json.loads((directory/"run.json").read_text());metadata["runner_sha256"]=module.PRE_SIMPLIFICATION_RUNNER_SHA256
+        write_json(directory/"run.json",metadata)
+        relocated=copy.deepcopy(manifest);relocated["archive"]={"path":"new/origin.tar","mtime_ns":99}
+        for row in relocated["records"]:row["image_path"]="new/images/"+str(row["image_id"])+".jpg"
+        module.verify_run(directory,moved,current,path,relocated)
+        for field,value in (("caption","modified"),("image_sha256","modified"),("true_label","MISMATCH")):
+            changed=copy.deepcopy(relocated);changed["records"][0][field]=value
+            with self.assertRaisesRegex(ValueError,"input manifest changed"):
+                module.verify_run(directory,moved,current,path,changed)
+        changed=copy.deepcopy(current);changed["contract"]["experiment"]["context_size"]=8192;changed["fingerprint"]=fingerprint(changed["contract"])
+        self.assertFalse(module.protocols_match(old,changed))
+        with patch.object(module,"freeze_protocol",return_value=current), \
+             patch.object(module,"checked_manifest",side_effect=AssertionError("No external inputs for status")):
+            self.assertEqual(module.inspect_run(directory,moved,self.root)["counts"]["remaining"],4)
 
     @unittest.skipUnless(os.name == "nt", "Windows rename/sharing regression")
     def test_real_windows_metrics_lock_does_not_stop_or_repeat_requests(self):
@@ -342,31 +366,6 @@ class ResumeTests(unittest.TestCase):
             load_journal(self.journal, self.rows, repair=False)
         self.assertTrue(self.journal.read_bytes().endswith(b'{"incomplete":'))
 
-    def test_val_gate_requires_same_model_but_never_selects_by_accuracy(self):
-        from newsclip_pilot.experiments import require_validation
-        protocol = {"contract": {"fixture": "fixed"}, "fingerprint": fingerprint({"fixture": "fixed"})}
-        identity = {"model": "A"}
-        write_json(self.directory / "run.json", {"split": "val", "protocol": protocol, "server": {"identity": identity}})
-        write_json(self.directory / "input_manifest.json", {"records": self.rows})
-        # Every answer is wrong, one is INVALID: neither is silently filtered.
-        answers = ["MISMATCH", "MATCH", "MATCH.", "MATCH"]
-        with self.journal.open("ab") as handle:
-            for row, answer in zip(self.rows, answers):
-                append_result(handle, saved(row, response(answer)))
-        config = {"validation": {"run_dir": "results"}}
-        with patch("newsclip_pilot.baseline.freeze_protocol", return_value=protocol), \
-             patch("newsclip_pilot.experiments.validation_config", return_value=config), \
-             patch("newsclip_pilot.experiments.validation_manifest", return_value=(None, {"records": self.rows})):
-            info = require_validation(config, self.root, {"identity": identity})
-            self.assertEqual(info["n_evaluated"], 4)
-            self.assertEqual(info["invalid_responses"], 1)
-            with self.assertRaisesRegex(RuntimeError, "another model"):
-                require_validation(config, self.root, {"identity": {"model": "B"}})
-            with self.journal.open("wb") as handle:
-                for row in self.rows:
-                    append_result(handle, saved(row, response("<think></think>MATCH")))
-            with self.assertRaisesRegex(RuntimeError, "no exact MATCH/MISMATCH"):
-                require_validation(config, self.root, {"identity": identity})
 
     def test_audited_legacy_runner_can_resume_without_changing_protocol(self):
         import newsclip_pilot.baseline as module
@@ -397,6 +396,73 @@ class ResumeTests(unittest.TestCase):
 
 
 class MappingAndCountTests(unittest.TestCase):
+    def test_clean_published_tree_prepares_and_relocates_without_local_artifacts(self):
+        import base64
+        import shutil
+        import subprocess
+        project=Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)/"checkout";root.mkdir()
+            files=["scripts/baseline.py"]+[f"src/newsclip_pilot/{name}.py" for name in
+                   ("__init__","baseline","client","data","evaluation","experiments","reports","storage")]
+            files += ["configs/prompt.txt"]+[f"configs/test_{m}.json" for m in ("lfm3_vl_2b","qwen35_2b","smolvlm2_2_2b")]
+            for relative in files:
+                target=root/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(project/relative,target)
+            annotations=root/"data/raw/newsclippings/test.json";annotations.parent.mkdir(parents=True)
+            rows=[]
+            for _ in range(3632):
+                rows.extend([dict(id=10,image_id=10,falsified=False,source_dataset=0),dict(id=10,image_id=20,falsified=True,source_dataset=0)])
+            write_json(annotations,{"annotations":rows,"source_datasets":{"0":"synthetic fixture"}})
+            for path in (root/"configs").glob("test_*.json"):
+                config=json.loads(path.read_text());config["annotations_sha256"]=hashlib.sha256(annotations.read_bytes()).hexdigest();write_json(path,config)
+            archive=root/"data/raw/visualnews/origin.tar";archive.parent.mkdir(parents=True)
+            image=base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")
+            metadata=[dict(id=i,caption=f"Synthetic {i}",image_path=f"images/{i}.png") for i in (10,20)]
+            with tarfile.open(archive,"w") as handle:
+                for name,raw in {"origin/data.json":json.dumps(metadata).encode(),"origin/images/10.png":image,"origin/images/20.png":image}.items():
+                    member=tarfile.TarInfo(name);member.size=len(raw);handle.addfile(member,io.BytesIO(raw))
+            def execute(arguments):
+                result=subprocess.run([sys.executable,"-B",*arguments],cwd=root,capture_output=True,text=True,encoding="utf-8",timeout=60)
+                self.assertEqual(result.returncode,0,result.stdout[-3000:]+result.stderr[-3000:])
+                return result
+            execute(["scripts/baseline.py","--model","lfm3_vl_2b","prepare"])
+            driver='''import json,sys
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,'src')
+from newsclip_pilot import baseline as b
+c=b.load_model_config(Path.cwd(),model_id='lfm3_vl_2b')
+if Path('separate_data').exists():c['prepared_dir']='separate_data'
+assert not Path('data/capacity').exists() and not Path('data/pilot').exists()
+path,manifest=b.checked_manifest(c)
+raw=path.read_bytes()
+for key,value in [('caption','changed'),('image_sha256','changed'),('true_label','MISMATCH')]:
+ changed=json.loads(raw);changed['records'][0][key]=value;path.write_text(json.dumps(changed),encoding='utf-8')
+ try:b.checked_manifest(c)
+ except ValueError:pass
+ else:raise AssertionError('Changed input accepted: '+key)
+ path.write_bytes(raw)
+image=Path(manifest['records'][0]['image_path']);raw_image=image.read_bytes();image.write_bytes(raw_image+b'changed')
+try:b.checked_manifest(c)
+except ValueError:pass
+else:raise AssertionError('Changed image bytes accepted')
+image.write_bytes(raw_image)
+args=['--model','lfm3_vl_2b','run']
+if c['prepared_dir']=='separate_data':args=['--model','lfm3_vl_2b','--prepared-dir','separate_data','run']
+if Path(c['run_dir'],'run.json').exists():args+=['--resume']
+with patch.object(b.LocalClient,'request',side_effect=AssertionError('No HTTP')) as http,patch.object(b,'check_server',side_effect=RuntimeError('EXPECTED_PREFLIGHT_STOP')) as preflight:
+ assert b.main(args)==1
+ assert preflight.call_count==1 and http.call_count==0
+metadata=json.loads(Path(c['run_dir'],'run.json').read_text())
+assert metadata['n_completed']==0 and metadata['phase']=='server_preflight'
+print('Clean checkout: prepared 2 images, all mappings checked, no HTTP')
+'''
+            execute(["-c",driver])
+            moved=root.with_name("relocated");root.rename(moved);root=moved
+            (root/"data/newsclippings_test").rename(root/"separate_data")
+            execute(["-c",driver])
+            self.assertFalse((root/"src/newsclip_pilot/capacity.py").exists())
+
     def test_caption_by_id_and_image_by_image_id_for_both_pair_relations(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -441,43 +507,6 @@ def read_metrics(directory):
 
 
 class FrozenProtocolTests(unittest.TestCase):
-    def test_capacity_cache_bounds_identity_and_undecodable_records(self):
-        from newsclip_pilot.capacity import digest_file,validate_capacity_index
-        import hashlib
-        with tempfile.TemporaryDirectory() as temporary:
-            root=Path(temporary)
-            for name in ("llama.dll","mtmd.dll"):(root/name).write_bytes(b"fixture DLL; never loaded")
-            manifest={"records":[dict(annotation_index=i,image_sha256=f"image{i}",caption=f"Caption {i}") for i in range(2)]}
-            prepared=root/"prepared";prepared.mkdir();write_json(prepared/"manifest.json",manifest)
-            image={"client_resize":None,"image_min_tokens":-1,"image_max_tokens":-1}
-            config={"model_id":"lfm3_vl_2b","prepared_dir":"prepared","max_tokens":16,"protocol":{"prompt_sha256":"prompt"},
-                    "experiment":{"context_size":4352,"gguf":{"sha256":"weights"},"mmproj":[{"sha256":"projector"}],"image_processing":image},
-                    "capacity_preflight":{"path":"counts.json","margin_tokens":64}}
-            records=[dict(dataset="NewsCLIPpings",input_id=f"news:{i}",image_sha256=f"image{i}",decodable=i==0,
-                          caption_sha256=hashlib.sha256(f"Caption {i}".encode()).hexdigest()) for i in range(2)]
-            records[0].update(input_tokens=4221,input_positions=4221)
-            proof={"gguf_sha256":"weights","mmproj_sha256":"projector","prompt_sha256":"prompt",**image,
-                   "news_manifest_sha256":digest_file(prepared/"manifest.json"),
-                   "dll_sha256":{name:digest_file(root/name) for name in ("llama.dll","mtmd.dll")}}
-            index={"model":"lfm3_vl_2b","historical_mismatches":[],"proof":proof,"records":records}
-            write_json(root/"counts.json",index);config["capacity_preflight"]["sha256"]=digest_file(root/"counts.json")
-            before=json.dumps(manifest)
-            with patch("newsclip_pilot.capacity.shutil.which",return_value=str(root/"llama.exe")):
-                summary=validate_capacity_index(config,manifest,root)
-                self.assertEqual(summary["counted_records"],1)
-                self.assertEqual(summary["native_decoder_failures_without_length"],1)
-                self.assertEqual(json.dumps(manifest),before)
-                config["experiment"]["context_size"]=4096
-                with self.assertRaisesRegex(ValueError,"annotation_index=0"):
-                    validate_capacity_index(config,manifest,root)
-                config["experiment"]["context_size"]=4352
-                manifest["records"][0]["caption"]="changed"
-                with self.assertRaisesRegex(ValueError,"input changed"):
-                    validate_capacity_index(config,manifest,root)
-                manifest["records"][0]["caption"]="Caption 0"
-                (root/"counts.json").write_text("modified",encoding="utf-8")
-                with self.assertRaisesRegex(ValueError,"cache changed"):
-                    validate_capacity_index(config,manifest,root)
 
     def test_native_template_only_allows_one_terminal_lf_removal(self):
         import hashlib
@@ -511,7 +540,7 @@ class FrozenProtocolTests(unittest.TestCase):
             rows = [dict(annotation_index=i, pair_index=i//2, id=i//2, image_id=i,
                          caption="fixture", image_sha256="fixture", true_label="MATCH" if i%2==0 else "MISMATCH")
                     for i in range(7264)]
-            manifest = {"records": rows, "audit": {"records": 7264}}
+            manifest = {"records": rows, "audit": {"records": 7264}, "annotations_sha256": config["annotations_sha256"]}
             path.parent.mkdir(parents=True)
             write_json(path, manifest)
             write_json(path.parent / "selection.json", manifest)
@@ -559,6 +588,10 @@ class FrozenProtocolTests(unittest.TestCase):
                     self.assertEqual(result["n_evaluated"],7264)
                     self.assertTrue(result["complete"])
                     self.assertEqual((directory/"predictions.jsonl").read_bytes(),complete_bytes)
+                    (directory/"metrics.json").rename(directory/"metrics.saved.json")
+                    reconstructed=build_report(directory,config,root)
+                    self.assertEqual(reconstructed["accuracy"],result["accuracy"])
+                    self.assertTrue(reconstructed["complete"])
                 orphan = root / "results/orphan"
                 orphan.mkdir()
                 (orphan / "predictions.jsonl").write_text("old answers", encoding="utf-8")
