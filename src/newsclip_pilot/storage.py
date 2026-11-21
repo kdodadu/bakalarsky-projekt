@@ -11,15 +11,23 @@ import time
 
 def write_json(path, value):
     """Keep the previous valid JSON until atomic replacement succeeds."""
+    _write_atomic(path, lambda handle: (json.dump(value, handle, ensure_ascii=False, indent=2), handle.write("\n")))
+
+
+def write_text(path, value):
+    """Use the same durable Windows replacement policy for derived CSV/text."""
+    _write_atomic(path, lambda handle: handle.write(value), newline="")
+
+
+def _write_atomic(path, writer, *, newline=None):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
-                                         prefix=path.name + ".", suffix=".tmp", delete=False) as handle:
+                                         prefix=path.name + ".", suffix=".tmp", delete=False, newline=newline) as handle:
             temporary = Path(handle.name)
-            json.dump(value, handle, ensure_ascii=False, indent=2)
-            handle.write("\n")
+            writer(handle)
             handle.flush()
             os.fsync(handle.fileno())
         # WinError 5/32/33 can be caused by a reader without delete-sharing.

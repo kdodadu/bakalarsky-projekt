@@ -3,6 +3,7 @@ __pycache__/
 .venv-train/
 data/
 results/
+/reports/val_*/
 models/
 .env
 /scripts/train.py

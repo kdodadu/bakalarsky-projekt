@@ -1,4 +1,4 @@
-"""Prepare, start or resume the full test baseline with the frozen pilot protocol."""
+"""Shared, explicitly selected model baseline on the full NewsCLIPpings test."""
 
 from pathlib import Path
 import sys

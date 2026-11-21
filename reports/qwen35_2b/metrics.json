@@ -1,0 +1,232 @@
+{
+  "schema_version": 1,
+  "model": "qwen35_2b",
+  "model_alias": "unsloth/Qwen3.5-2B-GGUF:Q4_K_M",
+  "source_run_id": "qwen35_2b@2026-11-21T18:35:34.067115+00:00",
+  "source_run_directory": "results/test_merged_balanced_qwen35_2b",
+  "source_run_created_at_utc": "2026-11-21T18:35:34.067115+00:00",
+  "source_predictions_sha256": "799fecc08fa659eed5446099ef645bacde76699f59f083720356073c37729c3e",
+  "dataset": "NewsCLIPpings",
+  "variant": "merged_balanced",
+  "split": "test",
+  "status": "complete",
+  "n_evaluated": 7264,
+  "n_expected": 7264,
+  "complete": true,
+  "accuracy": 0.6799284140969163,
+  "macro_f1": 0.6800169527120697,
+  "valid_response_rate": 0.9994493392070485,
+  "invalid_responses": 0,
+  "request_errors": 4,
+  "per_class": {
+    "MATCH": {
+      "precision": 0.6743876464323749,
+      "recall": 0.6974118942731278,
+      "f1": 0.6857065511640498,
+      "support": 3632
+    },
+    "MISMATCH": {
+      "precision": 0.6866438356164384,
+      "recall": 0.6624449339207048,
+      "f1": 0.6743273542600897,
+      "support": 3632
+    }
+  },
+  "confusion_matrix": {
+    "rows_true": [
+      "MATCH",
+      "MISMATCH"
+    ],
+    "columns_predicted": [
+      "MATCH",
+      "MISMATCH"
+    ],
+    "values": [
+      [
+        2533,
+        1098
+      ],
+      [
+        1223,
+        2406
+      ]
+    ]
+  },
+  "confusion_matrix_with_failures": {
+    "rows_true": [
+      "MATCH",
+      "MISMATCH"
+    ],
+    "columns_predicted": [
+      "MATCH",
+      "MISMATCH",
+      "INVALID",
+      "ERROR"
+    ],
+    "values": [
+      [
+        2533,
+        1098,
+        0,
+        1
+      ],
+      [
+        1223,
+        2406,
+        0,
+        3
+      ]
+    ]
+  },
+  "policy": "All attempted records count. INVALID and ERROR are incorrect and false negatives for the true class. Macro-F1 averages MATCH and MISMATCH only. Interrupted runs report attempted-record metrics and complete=false; unattempted records are not scored.",
+  "input_composition_sha256": "2341171f3839a227d64a301bc1b929a7483cad0011cf367c3f395ed146abc4bd",
+  "protocol": {
+    "fingerprint": "f664cc59965891508bb80c4307e9498dc197eaa59bd47d311c8b16232685b2bc",
+    "annotations_sha256": "616e06af39fd8afa88d1920e455e4d6ca69e013c9b2fa4dadda593fb0e813aea",
+    "prompt_sha256": "1a3a3c3453368a4e253a8bd3a7aff9878e4383a71155d2e9c7ae68c9ce0ecadc",
+    "request_text_format": "prompt + newline newline + Caption: + JSON-quoted caption",
+    "client_image_preprocessing": "original bytes; no client resizing or recompression",
+    "request_generation": {
+      "seed": 42,
+      "base_url": "http://127.0.0.1:8080",
+      "model": "unsloth/Qwen3.5-2B-GGUF:Q4_K_M",
+      "temperature": 0.0,
+      "repeat_penalty": 1.0,
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      },
+      "max_tokens": 16,
+      "timeout_seconds": 180
+    },
+    "fixed_payload_parameters": {
+      "presence_penalty": 0.0,
+      "frequency_penalty": 0.0,
+      "stream": false,
+      "cache_prompt": false
+    },
+    "client_parser_evaluation_sha256": {
+      "src/newsclip_pilot/client.py": "4864bff73635fa635c65aeca3d3eb53787e7bd7a7caf4a67c78c365496d9bccc",
+      "src/newsclip_pilot/evaluation.py": "f2db0aa008788a8cae9cd844df91ed881f8af3100831b7def900d0ecef285e7a"
+    },
+    "llama_cpp_build": "b12602-418fe97b5",
+    "quantization": "Q4_K - Medium",
+    "context_size": 4352,
+    "parallel": 1,
+    "chat_template_sha256": "7f0e529032c25183bcd66c7f238da2d377f43be754a94e2725a58c4e16d2ed67",
+    "template_source": "embedded GGUF",
+    "native_image_preprocessing": "llama.cpp mtmd for this GGUF/mmproj; differs by architecture; see file metadata and /props",
+    "image_processing_settings": {
+      "client_resize": null,
+      "image_min_tokens": -1,
+      "image_max_tokens": -1
+    },
+    "capacity_preflight": {
+      "path": "data/capacity/qwen35_2b_counts.json",
+      "sha256": "ff11338a1762ac08dcd09c8f5efe3e0f71e450eb9e47685ecbf2b64086882270",
+      "output_tokens": 16,
+      "margin_tokens": 64
+    },
+    "reasoning_budget": 0,
+    "response_reasoning_format": null,
+    "server_default_generation_params": {
+      "seed": 4294967295,
+      "temperature": 0.800000011920929,
+      "dynatemp_range": 0.0,
+      "dynatemp_exponent": 1.0,
+      "top_k": 40,
+      "top_p": 0.949999988079071,
+      "min_p": 0.05000000074505806,
+      "top_n_sigma": -1.0,
+      "xtc_probability": 0.0,
+      "xtc_threshold": 0.10000000149011612,
+      "typical_p": 1.0,
+      "repeat_last_n": 64,
+      "repeat_penalty": 1.0,
+      "presence_penalty": 0.0,
+      "frequency_penalty": 0.0,
+      "dry_multiplier": 0.0,
+      "dry_base": 1.75,
+      "dry_allowed_length": 2,
+      "dry_penalty_last_n": 64,
+      "mirostat": 0,
+      "mirostat_tau": 5.0,
+      "mirostat_eta": 0.10000000149011612,
+      "adaptive_target": -1.0,
+      "adaptive_decay": 0.8999999761581421,
+      "max_tokens": -1,
+      "n_predict": -1,
+      "n_keep": 0,
+      "n_discard": 0,
+      "ignore_eos": false,
+      "stream": false,
+      "n_probs": 0,
+      "min_keep": 0,
+      "chat_format": "Content-only",
+      "reasoning_format": "none",
+      "reasoning_in_content": false,
+      "generation_prompt": "",
+      "samplers": [
+        "penalties",
+        "dry",
+        "top_n_sigma",
+        "top_k",
+        "typ_p",
+        "top_p",
+        "min_p",
+        "xtc",
+        "temperature"
+      ],
+      "speculative.types": "none",
+      "timings_per_token": false,
+      "post_sampling_probs": false,
+      "backend_sampling": false,
+      "lora": []
+    },
+    "weights": {
+      "gguf": {
+        "filename": "Qwen3.5-2B-Q4_K_M.gguf",
+        "sha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
+      },
+      "mmproj": {
+        "filename": "mmproj-BF16.gguf",
+        "sha256": "f17196c0d8fc756bc65be60075bd4a359917eee8a438505639511727c585d3c2"
+      }
+    },
+    "repository_revision": "f6d5376be1edb4d416d56da11e5397a961aca8ae",
+    "launch_command": [
+      "llama",
+      "serve",
+      "-hf",
+      "unsloth/Qwen3.5-2B-GGUF:Q4_K_M",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8080",
+      "--ctx-size",
+      "4352",
+      "--parallel",
+      "1",
+      "--reasoning-budget",
+      "0",
+      "--log-file",
+      "logs/qwen35_2b_server.log",
+      "--offline",
+      "--gpu-layers",
+      "all",
+      "--device",
+      "Vulkan1",
+      "--fit",
+      "off",
+      "-lv",
+      "4",
+      "--image-min-tokens",
+      "-1",
+      "--image-max-tokens",
+      "-1"
+    ],
+    "unknown_metadata": []
+  },
+  "planned_protocol": null,
+  "historical_metrics_match": true,
+  "historical_metric_differences": {}
+}

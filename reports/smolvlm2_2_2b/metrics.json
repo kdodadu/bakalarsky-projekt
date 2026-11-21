@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "model": "smolvlm2_2_2b",
+  "model_alias": "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
+  "source_run_id": "smolvlm2_2_2b@2026-11-21T17:56:53.072537+00:00",
+  "source_run_directory": "results/test_merged_balanced_smolvlm2_2_2b",
+  "source_run_created_at_utc": "2026-11-21T17:56:53.072537+00:00",
+  "source_predictions_sha256": "85922970413d55aeafb3ea8e7ebfaf4feb672f559630f9887b451a9f239591ac",
+  "dataset": "NewsCLIPpings",
+  "variant": "merged_balanced",
+  "split": "test",
+  "status": "complete",
+  "n_evaluated": 7264,
+  "n_expected": 7264,
+  "complete": true,
+  "accuracy": 0.5030286343612335,
+  "macro_f1": 0.3422693144308341,
+  "valid_response_rate": 0.9994493392070485,
+  "invalid_responses": 0,
+  "request_errors": 4,
+  "per_class": {
+    "MATCH": {
+      "precision": 0.5017310621797535,
+      "recall": 0.9975220264317181,
+      "f1": 0.6676494978347001,
+      "support": 3632
+    },
+    "MISMATCH": {
+      "precision": 0.7948717948717948,
+      "recall": 0.008535242290748899,
+      "f1": 0.016889131026968127,
+      "support": 3632
+    }
+  },
+  "confusion_matrix": {
+    "rows_true": [
+      "MATCH",
+      "MISMATCH"
+    ],
+    "columns_predicted": [
+      "MATCH",
+      "MISMATCH"
+    ],
+    "values": [
+      [
+        3623,
+        8
+      ],
+      [
+        3598,
+        31
+      ]
+    ]
+  },
+  "confusion_matrix_with_failures": {
+    "rows_true": [
+      "MATCH",
+      "MISMATCH"
+    ],
+    "columns_predicted": [
+      "MATCH",
+      "MISMATCH",
+      "INVALID",
+      "ERROR"
+    ],
+    "values": [
+      [
+        3623,
+        8,
+        0,
+        1
+      ],
+      [
+        3598,
+        31,
+        0,
+        3
+      ]
+    ]
+  },
+  "policy": "All attempted records count. INVALID and ERROR are incorrect and false negatives for the true class. Macro-F1 averages MATCH and MISMATCH only. Interrupted runs report attempted-record metrics and complete=false; unattempted records are not scored.",
+  "input_composition_sha256": "2341171f3839a227d64a301bc1b929a7483cad0011cf367c3f395ed146abc4bd",
+  "protocol": {
+    "fingerprint": "cb61b55f8ca67fca980004ab1a71c425db4ed213e62ccf568f539238ffee2ab1",
+    "annotations_sha256": "616e06af39fd8afa88d1920e455e4d6ca69e013c9b2fa4dadda593fb0e813aea",
+    "prompt_sha256": "1a3a3c3453368a4e253a8bd3a7aff9878e4383a71155d2e9c7ae68c9ce0ecadc",
+    "request_text_format": "prompt + newline newline + Caption: + JSON-quoted caption",
+    "client_image_preprocessing": "original bytes; no client resizing or recompression",
+    "request_generation": {
+      "seed": 42,
+      "base_url": "http://127.0.0.1:8080",
+      "model": "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
+      "temperature": 0.0,
+      "repeat_penalty": 1.0,
+      "chat_template_kwargs": {
+        "enable_thinking": false
+      },
+      "max_tokens": 16,
+      "timeout_seconds": 180
+    },
+    "fixed_payload_parameters": {
+      "presence_penalty": 0.0,
+      "frequency_penalty": 0.0,
+      "stream": false,
+      "cache_prompt": false
+    },
+    "client_parser_evaluation_sha256": {
+      "src/newsclip_pilot/client.py": "4864bff73635fa635c65aeca3d3eb53787e7bd7a7caf4a67c78c365496d9bccc",
+      "src/newsclip_pilot/evaluation.py": "f2db0aa008788a8cae9cd844df91ed881f8af3100831b7def900d0ecef285e7a"
+    },
+    "llama_cpp_build": "b12602-418fe97b5",
+    "quantization": "Q4_K - Medium",
+    "context_size": 8192,
+    "parallel": 1,
+    "chat_template_sha256": "830005085ddd94cec605b6e21b885b28ffad6e3f82ee6a212c523533e8f04f01",
+    "template_source": "embedded GGUF",
+    "native_image_preprocessing": "llama.cpp mtmd for this GGUF/mmproj; differs by architecture; see file metadata and /props",
+    "image_processing_settings": {
+      "client_resize": null,
+      "image_min_tokens": -1,
+      "image_max_tokens": 8359,
+      "information_tradeoff": "User-approved reduced internal vision resolution/patch grid for Smol only; original files, transmitted bytes and captions unchanged."
+    },
+    "capacity_preflight": {
+      "path": "data/capacity/smolvlm2_2_2b_image8359_counts.json",
+      "sha256": "1863bcf565e6de1090bb5b68dd70d9a8b608b2baf7052caea822983c435d0443",
+      "output_tokens": 16,
+      "margin_tokens": 64
+    },
+    "reasoning_budget": null,
+    "response_reasoning_format": null,
+    "server_default_generation_params": {
+      "seed": 4294967295,
+      "temperature": 0.800000011920929,
+      "dynatemp_range": 0.0,
+      "dynatemp_exponent": 1.0,
+      "top_k": 40,
+      "top_p": 0.949999988079071,
+      "min_p": 0.05000000074505806,
+      "top_n_sigma": -1.0,
+      "xtc_probability": 0.0,
+      "xtc_threshold": 0.10000000149011612,
+      "typical_p": 1.0,
+      "repeat_last_n": 64,
+      "repeat_penalty": 1.0,
+      "presence_penalty": 0.0,
+      "frequency_penalty": 0.0,
+      "dry_multiplier": 0.0,
+      "dry_base": 1.75,
+      "dry_allowed_length": 2,
+      "dry_penalty_last_n": 64,
+      "mirostat": 0,
+      "mirostat_tau": 5.0,
+      "mirostat_eta": 0.10000000149011612,
+      "adaptive_target": -1.0,
+      "adaptive_decay": 0.8999999761581421,
+      "max_tokens": -1,
+      "n_predict": -1,
+      "n_keep": 0,
+      "n_discard": 0,
+      "ignore_eos": false,
+      "stream": false,
+      "n_probs": 0,
+      "min_keep": 0,
+      "chat_format": "Content-only",
+      "reasoning_format": "none",
+      "reasoning_in_content": false,
+      "generation_prompt": "",
+      "samplers": [
+        "penalties",
+        "dry",
+        "top_n_sigma",
+        "top_k",
+        "typ_p",
+        "top_p",
+        "min_p",
+        "xtc",
+        "temperature"
+      ],
+      "speculative.types": "none",
+      "timings_per_token": false,
+      "post_sampling_probs": false,
+      "backend_sampling": false,
+      "lora": []
+    },
+    "weights": {
+      "gguf": {
+        "filename": "SmolVLM2-2.2B-Instruct-Q4_K_M.gguf",
+        "sha256": "0cf76814555b8665149075b74ab6b5c1d428ea1d3d01c1918c12012e8d7c9f58"
+      },
+      "mmproj": {
+        "filename": "mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",
+        "sha256": "ae07ea1facd07dd3230c4483b63e8cda96c6944ad2481f33d531f79e892dd024"
+      }
+    },
+    "repository_revision": "1bc3c9f74ceafd4c8d4411cc9cf188bba3798f91",
+    "launch_command": [
+      "llama",
+      "serve",
+      "-hf",
+      "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8080",
+      "--ctx-size",
+      "8192",
+      "--parallel",
+      "1",
+      "--log-file",
+      "logs/smolvlm2_2_2b_server.log",
+      "--offline",
+      "--gpu-layers",
+      "all",
+      "--device",
+      "Vulkan1",
+      "--fit",
+      "off",
+      "-lv",
+      "4",
+      "--image-min-tokens",
+      "-1",
+      "--image-max-tokens",
+      "8359"
+    ],
+    "unknown_metadata": []
+  },
+  "planned_protocol": null,
+  "historical_metrics_match": true,
+  "historical_metric_differences": {}
+}

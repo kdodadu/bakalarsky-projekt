@@ -34,7 +34,7 @@ def select_test_records(path, seed=42, expected_count=7264):
 def select_records(path, seed=42, expected_count=None, *, split="train", groups=None):
     """Shared pair validation; train sampling never reads test or VERITE."""
     path = Path(path)
-    if split not in ("train", "test") or path.name.lower() != f"{split}.json" or "verite" in (p.lower() for p in path.parts):
+    if split not in ("train", "val", "test") or path.name.lower() != f"{split}.json" or "verite" in (p.lower() for p in path.parts):
         raise ValueError("Unexpected NewsCLIPpings split.")
     doc = json.loads(path.read_text(encoding="utf-8"))
     rows = doc["annotations"]
@@ -66,8 +66,8 @@ def select_records(path, seed=42, expected_count=None, *, split="train", groups=
         pairs.append({"pair_index": index // 2, "relation": relation, "rows": [pristine, falsified]})
     verified_pairs = len(pairs)
     if groups is not None:
-        if split != "train" or not 0 < groups <= len(pairs):
-            raise ValueError("Sampling is allowed only for valid train groups.")
+        if split not in ("train", "val") or not 0 < groups <= len(pairs):
+            raise ValueError("Sampling is allowed only for valid train/val groups.")
         pairs = random.Random(seed).sample(pairs, groups)
     selected = []
     for pair in pairs:

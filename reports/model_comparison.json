@@ -1,0 +1,293 @@
+{
+  "schema_version": 1,
+  "models": [
+    {
+      "model": "lfm3_vl_2b",
+      "status": "complete",
+      "n_evaluated": 7264,
+      "n_expected": 7264,
+      "accuracy": 0.581635462555066,
+      "macro_f1": 0.5260300241281435,
+      "valid_response_rate": 0.9994493392070485,
+      "invalid_responses": 0,
+      "request_errors": 4,
+      "complete": true
+    },
+    {
+      "model": "qwen35_2b",
+      "status": "complete",
+      "n_evaluated": 7264,
+      "n_expected": 7264,
+      "accuracy": 0.6799284140969163,
+      "macro_f1": 0.6800169527120697,
+      "valid_response_rate": 0.9994493392070485,
+      "invalid_responses": 0,
+      "request_errors": 4,
+      "complete": true
+    },
+    {
+      "model": "smolvlm2_2_2b",
+      "status": "complete",
+      "n_evaluated": 7264,
+      "n_expected": 7264,
+      "accuracy": 0.5030286343612335,
+      "macro_f1": 0.3422693144308341,
+      "valid_response_rate": 0.9994493392070485,
+      "invalid_responses": 0,
+      "request_errors": 4,
+      "complete": true
+    }
+  ],
+  "protocol_comparison": {
+    "same_input_records": true,
+    "input_scope": "Saved inputs for started runs; verified prepared inputs for pending runs.",
+    "observed_models": [
+      "lfm3_vl_2b",
+      "qwen35_2b",
+      "smolvlm2_2_2b"
+    ],
+    "pending_models": [],
+    "shared_checks_scope": "Only runs with recorded server observations; planned settings are not observations.",
+    "same_annotations_sha256": true,
+    "same_prompt_sha256": true,
+    "same_request_text_format": true,
+    "same_client_image_preprocessing": true,
+    "same_fixed_payload_parameters": true,
+    "same_client_parser_evaluation_sha256": true,
+    "same_request_generation_except_model": true,
+    "different_or_unknown": {
+      "llama_cpp_build": {
+        "lfm3_vl_2b": "b12602-418fe97b5",
+        "qwen35_2b": "b12602-418fe97b5",
+        "smolvlm2_2_2b": "b12602-418fe97b5"
+      },
+      "context_size": {
+        "lfm3_vl_2b": 4352,
+        "qwen35_2b": 4352,
+        "smolvlm2_2_2b": 8192
+      },
+      "parallel": {
+        "lfm3_vl_2b": 1,
+        "qwen35_2b": 1,
+        "smolvlm2_2_2b": 1
+      },
+      "chat_template_sha256": {
+        "lfm3_vl_2b": "48ab0f7e16b7e5bf7751c5c1f9a011ff4b36bf1bbed0790a1cea2aec89295d3b",
+        "qwen35_2b": "7f0e529032c25183bcd66c7f238da2d377f43be754a94e2725a58c4e16d2ed67",
+        "smolvlm2_2_2b": "830005085ddd94cec605b6e21b885b28ffad6e3f82ee6a212c523533e8f04f01"
+      },
+      "weights": {
+        "lfm3_vl_2b": {
+          "gguf": {
+            "filename": "LFM3-VL-2B-Q4_K_M.gguf",
+            "sha256": "56dac2e192ff0d9ab8507f4f1aeb4aed0463449bbbefaac79497f041c95f21eb"
+          },
+          "mmproj": {
+            "filename": "mmproj-LFM3-VL-2B-Q8_0.gguf",
+            "sha256": "c5c5b58d544a18da919172d2d0368090ea1a4a351b6feb7f8a326a264a5918ab"
+          }
+        },
+        "qwen35_2b": {
+          "gguf": {
+            "filename": "Qwen3.5-2B-Q4_K_M.gguf",
+            "sha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
+          },
+          "mmproj": {
+            "filename": "mmproj-BF16.gguf",
+            "sha256": "f17196c0d8fc756bc65be60075bd4a359917eee8a438505639511727c585d3c2"
+          }
+        },
+        "smolvlm2_2_2b": {
+          "gguf": {
+            "filename": "SmolVLM2-2.2B-Instruct-Q4_K_M.gguf",
+            "sha256": "0cf76814555b8665149075b74ab6b5c1d428ea1d3d01c1918c12012e8d7c9f58"
+          },
+          "mmproj": {
+            "filename": "mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",
+            "sha256": "ae07ea1facd07dd3230c4483b63e8cda96c6944ad2481f33d531f79e892dd024"
+          }
+        }
+      },
+      "server_default_generation_params": {
+        "lfm3_vl_2b": {
+          "seed": 4294967295,
+          "temperature": 0.800000011920929,
+          "dynatemp_range": 0.0,
+          "dynatemp_exponent": 1.0,
+          "top_k": 40,
+          "top_p": 0.949999988079071,
+          "min_p": 0.05000000074505806,
+          "top_n_sigma": -1.0,
+          "xtc_probability": 0.0,
+          "xtc_threshold": 0.10000000149011612,
+          "typical_p": 1.0,
+          "repeat_last_n": 64,
+          "repeat_penalty": 1.0,
+          "presence_penalty": 0.0,
+          "frequency_penalty": 0.0,
+          "dry_multiplier": 0.0,
+          "dry_base": 1.75,
+          "dry_allowed_length": 2,
+          "dry_penalty_last_n": 64,
+          "mirostat": 0,
+          "mirostat_tau": 5.0,
+          "mirostat_eta": 0.10000000149011612,
+          "adaptive_target": -1.0,
+          "adaptive_decay": 0.8999999761581421,
+          "max_tokens": -1,
+          "n_predict": -1,
+          "n_keep": 0,
+          "n_discard": 0,
+          "ignore_eos": false,
+          "stream": false,
+          "n_probs": 0,
+          "min_keep": 0,
+          "chat_format": "Content-only",
+          "reasoning_format": "none",
+          "reasoning_in_content": false,
+          "generation_prompt": "",
+          "samplers": [
+            "penalties",
+            "dry",
+            "top_n_sigma",
+            "top_k",
+            "typ_p",
+            "top_p",
+            "min_p",
+            "xtc",
+            "temperature"
+          ],
+          "speculative.types": "none",
+          "timings_per_token": false,
+          "post_sampling_probs": false,
+          "backend_sampling": false,
+          "lora": []
+        },
+        "qwen35_2b": {
+          "seed": 4294967295,
+          "temperature": 0.800000011920929,
+          "dynatemp_range": 0.0,
+          "dynatemp_exponent": 1.0,
+          "top_k": 40,
+          "top_p": 0.949999988079071,
+          "min_p": 0.05000000074505806,
+          "top_n_sigma": -1.0,
+          "xtc_probability": 0.0,
+          "xtc_threshold": 0.10000000149011612,
+          "typical_p": 1.0,
+          "repeat_last_n": 64,
+          "repeat_penalty": 1.0,
+          "presence_penalty": 0.0,
+          "frequency_penalty": 0.0,
+          "dry_multiplier": 0.0,
+          "dry_base": 1.75,
+          "dry_allowed_length": 2,
+          "dry_penalty_last_n": 64,
+          "mirostat": 0,
+          "mirostat_tau": 5.0,
+          "mirostat_eta": 0.10000000149011612,
+          "adaptive_target": -1.0,
+          "adaptive_decay": 0.8999999761581421,
+          "max_tokens": -1,
+          "n_predict": -1,
+          "n_keep": 0,
+          "n_discard": 0,
+          "ignore_eos": false,
+          "stream": false,
+          "n_probs": 0,
+          "min_keep": 0,
+          "chat_format": "Content-only",
+          "reasoning_format": "none",
+          "reasoning_in_content": false,
+          "generation_prompt": "",
+          "samplers": [
+            "penalties",
+            "dry",
+            "top_n_sigma",
+            "top_k",
+            "typ_p",
+            "top_p",
+            "min_p",
+            "xtc",
+            "temperature"
+          ],
+          "speculative.types": "none",
+          "timings_per_token": false,
+          "post_sampling_probs": false,
+          "backend_sampling": false,
+          "lora": []
+        },
+        "smolvlm2_2_2b": {
+          "seed": 4294967295,
+          "temperature": 0.800000011920929,
+          "dynatemp_range": 0.0,
+          "dynatemp_exponent": 1.0,
+          "top_k": 40,
+          "top_p": 0.949999988079071,
+          "min_p": 0.05000000074505806,
+          "top_n_sigma": -1.0,
+          "xtc_probability": 0.0,
+          "xtc_threshold": 0.10000000149011612,
+          "typical_p": 1.0,
+          "repeat_last_n": 64,
+          "repeat_penalty": 1.0,
+          "presence_penalty": 0.0,
+          "frequency_penalty": 0.0,
+          "dry_multiplier": 0.0,
+          "dry_base": 1.75,
+          "dry_allowed_length": 2,
+          "dry_penalty_last_n": 64,
+          "mirostat": 0,
+          "mirostat_tau": 5.0,
+          "mirostat_eta": 0.10000000149011612,
+          "adaptive_target": -1.0,
+          "adaptive_decay": 0.8999999761581421,
+          "max_tokens": -1,
+          "n_predict": -1,
+          "n_keep": 0,
+          "n_discard": 0,
+          "ignore_eos": false,
+          "stream": false,
+          "n_probs": 0,
+          "min_keep": 0,
+          "chat_format": "Content-only",
+          "reasoning_format": "none",
+          "reasoning_in_content": false,
+          "generation_prompt": "",
+          "samplers": [
+            "penalties",
+            "dry",
+            "top_n_sigma",
+            "top_k",
+            "typ_p",
+            "top_p",
+            "min_p",
+            "xtc",
+            "temperature"
+          ],
+          "speculative.types": "none",
+          "timings_per_token": false,
+          "post_sampling_probs": false,
+          "backend_sampling": false,
+          "lora": []
+        }
+      },
+      "reasoning_budget": {
+        "lfm3_vl_2b": null,
+        "qwen35_2b": 0,
+        "smolvlm2_2_2b": null
+      },
+      "response_reasoning_format": {
+        "lfm3_vl_2b": "deepseek",
+        "qwen35_2b": null,
+        "smolvlm2_2_2b": null
+      },
+      "unknown_metadata": {
+        "lfm3_vl_2b": [],
+        "qwen35_2b": [],
+        "smolvlm2_2_2b": []
+      }
+    }
+  },
+  "policy": "All attempted records count. INVALID and ERROR are incorrect and false negatives for the true class. Macro-F1 averages MATCH and MISMATCH only. Interrupted runs report attempted-record metrics and complete=false; unattempted records are not scored."
+}

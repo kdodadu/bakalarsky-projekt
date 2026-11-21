@@ -10,6 +10,7 @@ from pathlib import Path
 import platform
 import signal
 import sys
+import time
 import traceback
 
 from .client import LocalClient, interpret, make_payload
@@ -18,7 +19,11 @@ from .evaluation import evaluate
 from .storage import log_event, write_json
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_RUN = "results/test_merged_balanced_baseline"
+MODEL_ALIASES = {
+    "lfm3_vl_2b": "LiquidAI/LFM3-VL-2B-GGUF:Q4_K_M",
+    "qwen35_2b": "unsloth/Qwen3.5-2B-GGUF:Q4_K_M",
+    "smolvlm2_2_2b": "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
+}
 FROZEN_FILES = ("src/newsclip_pilot/client.py", "src/newsclip_pilot/evaluation.py")
 GENERATION_KEYS = ("seed", "base_url", "model", "temperature", "repeat_penalty",
                    "chat_template_kwargs", "max_tokens", "timeout_seconds")
@@ -26,6 +31,19 @@ SNAPSHOT_EVERY = 25
 # Audited predecessor: same frozen client/parser/metrics; only orchestration is repaired.
 LEGACY_RUNNER_SHA256 = "2deaf6ec23fb5c9a5cbd20bcebe86ff39b88e92b87e8f7fe33d2e9bee366dd38"
 PREVIOUS_RUNNER_SHA256 = "24ff9028d964eb3bf627c70e929d4ed11b39afefee6017c446e47c65b202c177"
+STANDALONE_RUNNER_SHA256 = "f817e191488b50dec17260ab86d8ebf398425167edee2c496e469b3869237b47"
+MULTIMODEL_RUNNER_SHA256 = "8f422c1aa56a405a7e3ea97af138c7600cb4c6681e2cc087836c5d7b1560d810"
+SAMPLE_ERROR_RUNNER_SHA256 = "9e807700f68e03254979047a1f4beeb69e3826c693819480f0c1ddb5da5e894f"
+RECOVERY_RUNNER_SHA256 = "6df0d6c72fc759574f630959a649789923dd557bacf05b53b22c24575a428e85"
+PENDING_RUNNER_SHA256 = "f30c6239f4b4454f84e67486ef342c9fe7ea3a4befa0457f919d5f5af79d48ac"
+CAPACITY_PREDECESSOR_RUNNER_SHA256 = "90d1d5b86b2a0d6a8dec5bfd68cc7bb6a1b4c594cc1aec094cc36f1b63b06eee"
+# The server/vision checks in this helper are unchanged. Only report code and
+# the compatibility comparison for relocated historical runs were refactored.
+PREVIOUS_HELPER_SHA256 = "1e0446c41a97dcbea3da5b018666cc52c85b97fc0aac212884a910946f3c713b"
+# The failed LFM preflight used byte equality before accounting for the server's
+# terminal LF removal. No classification or request settings change in this fix.
+TEMPLATE_HELPER_SHA256 = "7e3bc62488a245d4e9d0ef2f197b16083a12138d3e67cd1685f3e585170ee62c"
+CAPACITY_PREDECESSOR_HELPER_SHA256 = "99b1274b96c0621310ee0de051c73c54859f7c190e9dc8068a2910502b33b1c9"
 
 
 def now():
@@ -38,6 +56,29 @@ def read_json(path):
 
 def fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+
+
+def load_model_config(root, *, model_id=None, path=None):
+    config = read_json(local_path(root, path or f"configs/test_{model_id}.json"))
+    identifier = config.get("model_id")
+    if identifier not in MODEL_ALIASES or (model_id and identifier != model_id):
+        raise ValueError("Select a configuration with a matching, known model_id.")
+    if config.get("model") != MODEL_ALIASES[identifier]:
+        raise ValueError("model_id and the expected server model disagree.")
+    return config
+
+
+def protocols_match(saved, current):
+    """Keep snapshots immutable; accept only the audited helper refactor."""
+    for value in (saved, current):
+        if "contract" not in value or value.get("fingerprint") != fingerprint(value["contract"]):
+            return False
+    previous = dict(saved["contract"])
+    actual = current["contract"]
+    old_helper = previous.get("orchestration_sha256")
+    if old_helper in (PREVIOUS_HELPER_SHA256, TEMPLATE_HELPER_SHA256, CAPACITY_PREDECESSOR_HELPER_SHA256) and "orchestration_sha256" in actual:
+        previous["orchestration_sha256"] = actual["orchestration_sha256"]
+    return previous == actual
 
 
 def freeze_protocol(config, root=ROOT):
@@ -54,10 +95,18 @@ def freeze_protocol(config, root=ROOT):
                 "image_preprocessing": "original bytes; no client resizing or recompression",
                 "fixed_payload_parameters": {"presence_penalty": 0.0, "frequency_penalty": 0.0,
                                              "stream": False, "cache_prompt": False}}
+    if "experiment" in config:
+        contract["experiment"] = config["experiment"]
+        contract["orchestration_sha256"] = sha256_file(Path(__file__).with_name("experiments.py"))
+    if "capacity_preflight" in config:
+        contract["capacity_preflight"] = config["capacity_preflight"]
     return {"contract": contract, "fingerprint": fingerprint(contract)}
 
 
 def checked_manifest(config, root=ROOT):
+    if config.get("split") == "val":
+        from .experiments import validation_manifest
+        return validation_manifest(config, root)
     manifest_path = local_path(root, config["prepared_dir"]) / "manifest.json"
     manifest = read_json(manifest_path)
     selected = select_test_records(local_path(root, config["annotations"]), seed=config["seed"])
@@ -87,6 +136,9 @@ def checked_manifest(config, root=ROOT):
             if sha256_file(image) != actual["image_sha256"]:
                 raise ValueError(f"Missing or changed prepared image: {image}")
             checked_images.add(image)
+    if "capacity_preflight" in config:
+        from .capacity import validate_capacity_index
+        validate_capacity_index(config, manifest, root)
     return manifest_path, manifest
 
 
@@ -125,14 +177,15 @@ def initialize(directory, config, protocol, manifest_path, manifest, root=ROOT):
         raise FileExistsError("Run is already initialized; use run or run --resume.")
     if any(p.name != ".run.lock" for p in directory.iterdir()):
         raise ValueError("New run directory must be empty.")
-    metadata = {"schema_version": 1, "kind": "newsclippings_full_test_baseline", "split": "test",
+    is_validation = config.get("split") == "val"
+    metadata = {"schema_version": 1, "kind": "newsclippings_val_compatibility" if is_validation else "newsclippings_full_test_baseline", "split": config.get("split", "test"),
                 "created_at_utc": now(), "status": "ready", "complete": False,
                 "n_completed": 0, "expected_records": len(manifest["records"]),
                 "config": config, "protocol": protocol, "prompt": protocol["contract"]["prompt"],
                 "manifest_sha256": sha256_file(manifest_path), "input_manifest_sha256": fingerprint(manifest),
                 "python": sys.version, "python_executable": sys.executable, "platform": platform.platform(),
                 "runner_sha256": sha256_file(Path(__file__)),
-                "generation_order": "official annotation order, no sampling or shuffle",
+                "generation_order": "fixed val pairs, seed=42, pristine then falsified" if is_validation else "official annotation order, no sampling or shuffle",
                 "sessions": [], "recoveries": [], "server": None}
     write_json(directory / "input_manifest.json", manifest)
     (directory / "predictions.jsonl").touch(exist_ok=False)
@@ -230,6 +283,71 @@ class StopRequest:
         print("Ctrl+C: will save the current response, then stop. A second Ctrl+C aborts the in-flight request.", flush=True)
 
 
+def request_error_kind(result):
+    """Only known sample-specific HTTP failures permit automatic continuation."""
+    if result.get("http_status") != 400:
+        if str(result.get("error") or "").startswith(("URLError:", "TimeoutError:", "ConnectionResetError:",
+                                                       "ConnectionAbortedError:", "ConnectionRefusedError:",
+                                                       "RemoteDisconnected:", "OSError:")):
+            return "transport"
+        return "infrastructure_or_unknown"
+    try:
+        error = json.loads(result.get("raw_http_response") or "{}")["error"]
+        if error.get("type") == "exceed_context_size_error":
+            return "context_limit"
+        if error.get("message") == "Failed to load image or audio file":
+            return "media_decode"
+    except (ValueError, KeyError, TypeError, AttributeError):
+        pass
+    return "infrastructure_or_unknown"
+
+
+def recover_connection(directory, metadata, stop, root=ROOT):
+    """Probe health only, then revalidate identity. Never retry a classification."""
+    config = metadata["config"]
+    info = {"annotation_index": metadata["current_annotation_index"], "health_attempts": 0,
+            "started_at_utc": now(), "recovered": False}
+    metadata["last_connection_recovery"] = info
+    metadata["phase"] = "connection_recovery"
+    log_event(directory, "connection_recovery_started", **info)
+    if not metadata.get("server"):
+        info["error"] = "No previously verified server snapshot; automatic recovery refused."
+        return None
+    health_client = LocalClient(config["base_url"], timeout=5)
+    for delay in (0, 1, 2, 4):
+        if stop.requested:
+            break
+        if delay:
+            time.sleep(delay)
+        if stop.requested:
+            break
+        info["health_attempts"] += 1
+        health = health_client.request("/health")
+        log_event(directory, "connection_health_check", annotation_index=info["annotation_index"],
+                  attempt=info["health_attempts"], http_status=health.get("http_status"), error=health.get("error"))
+        if health.get("error") or not isinstance(health.get("response"), dict) or health["response"].get("status") != "ok":
+            info["error"] = health.get("error") or str(health.get("response"))
+            continue
+        if stop.requested:
+            break
+        try:
+            # Short GET timeouts during preflight; original classification timeout
+            # is restored before returning the newly verified client.
+            client, server = check_server({**config, "timeout_seconds": 5}, root, metadata["server"])
+            client.timeout = config["timeout_seconds"]
+        except (RuntimeError, OSError, ValueError, KeyError) as exc:
+            info["error"] = f"Server revalidation failed: {exc}"
+            log_event(directory, "connection_revalidation_failed", **info)
+            return None
+        info.update(recovered=True, finished_at_utc=now())
+        info.pop("error", None)
+        log_event(directory, "connection_recovered", **info)
+        return client, server
+    info["finished_at_utc"] = now()
+    log_event(directory, "connection_recovery_failed", **info)
+    return None
+
+
 def process_pending(directory, metadata, rows, records, client, stop, root=ROOT):
     indices = {row["annotation_index"] for row in rows}
     if len(indices) != len(rows) or len(rows) != metadata["expected_records"]:
@@ -261,6 +379,8 @@ def process_pending(directory, metadata, rows, records, client, stop, root=ROOT)
             result = {"annotation_index": row["annotation_index"], "pair_index": row["pair_index"],
                       "id": row["id"], "image_id": row["image_id"], "true_label": row["true_label"],
                       "started_at_utc": started_at, **response, **interpret(response)}
+            if result["status"] == "request_error":
+                result["request_error_kind"] = request_error_kind(result)
             metadata["phase"] = "save_response"
             append_result(handle, result)
             records.append(result)
@@ -271,10 +391,29 @@ def process_pending(directory, metadata, rows, records, client, stop, root=ROOT)
                 save_progress(directory, metadata, records)
             print(f"[{len(records)}/{len(rows)}] annotation={row['annotation_index']} {result['status']} {result['prediction']} ({result['elapsed_seconds']:.2f}s)", flush=True)
             if result["status"] == "request_error":
+                details = {"annotation_index": row["annotation_index"], "http_status": result["http_status"],
+                           "error_kind": result["request_error_kind"], "raw_http_response": result["raw_http_response"]}
+                if result["request_error_kind"] in ("context_limit", "media_decode"):
+                    log_event(directory, "sample_error_continue", **details)
+                    print(f"Sample-specific {result['request_error_kind']} saved as ERROR; continuing without retry or preprocessing changes.", flush=True)
+                    continue
+                if result["request_error_kind"] == "transport":
+                    print(f"Connection failure saved as ERROR: {result['error']}. Checking server health without retrying this example.", flush=True)
+                    recovered = recover_connection(directory, metadata, stop, root)
+                    if recovered is not None:
+                        client, metadata["server"] = recovered
+                        print("Same model/protocol verified after connection recovery; continuing with the next example.", flush=True)
+                        continue
                 metadata["status"] = "stopped_on_request_error"
                 metadata["stop_reason"] = {"kind": "request_error", "annotation_index": row["annotation_index"],
                                            "http_status": result["http_status"], "error": result["error"]}
-                print("Request error saved and counted. Stopping to avoid repeated infrastructure failures; resume skips this saved record.", flush=True)
+                if result["request_error_kind"] == "transport":
+                    metadata["stop_reason"]["connection_recovery"] = metadata["last_connection_recovery"]
+                    if stop.requested:
+                        metadata["status"] = "interrupted"
+                        metadata["stop_reason"]["kind"] = "ctrl_c"
+                log_event(directory, "request_error_stop", **details)
+                print("Infrastructure/unknown request error saved and counted; stopping. Resume skips this saved record.", flush=True)
                 break
     if len(records) == metadata["expected_records"]:
         metadata["status"] = "completed"
@@ -293,6 +432,9 @@ def server_signature(props):
 def check_server(config, root=ROOT, saved_server=None):
     client = LocalClient(config["base_url"], config["timeout_seconds"])
     server = client.probe(config["model"])
+    if "experiment" in config:
+        from .experiments import verify_model_server
+        return client, verify_model_server(config, server, root, saved_server)
     expected = (server_signature(saved_server["props"]["response"]) if saved_server
                 else config["protocol"]["server"])
     new_props = server["props"]["response"]
@@ -307,22 +449,25 @@ def check_server(config, root=ROOT, saved_server=None):
 
 def verify_run(directory, config, protocol, manifest_path, manifest):
     metadata = read_json(directory / "run.json")
-    if metadata.get("kind") != "newsclippings_full_test_baseline":
+    expected_kind = "newsclippings_val_compatibility" if config.get("split") == "val" else "newsclippings_full_test_baseline"
+    if metadata.get("kind") != expected_kind:
         raise ValueError("This is not a baseline run; pilot directories are read-only.")
-    # Historical runs include a pilot path and hashes. Ignore only that obsolete
-    # dependency; compare experiment settings and the saved contract itself.
-    settings = lambda c: {k: v for k, v in c.items() if k not in ("reference_pilot", "protocol")}
+    # These describe storage, a compatibility gate or redundant identification,
+    # not classification. Actual model, input manifests and protocol stay strict.
+    operational = {"reference_pilot", "protocol", "model_id", "run_dir", "validation"}
+    settings = lambda c: {k: v for k, v in c.items() if k not in operational}
     saved_protocol = metadata["protocol"]
     if (settings(metadata["config"]) != settings(config)
-            or saved_protocol["contract"] != protocol["contract"]
-            or saved_protocol.get("fingerprint") != protocol.get("fingerprint")
+            or (metadata["config"].get("model_id") is not None
+                and metadata["config"]["model_id"] != config.get("model_id"))
+            or not protocols_match(saved_protocol, protocol)
             or metadata["prompt"] != protocol["contract"]["prompt"]):
         raise ValueError("Settings differ from this run's saved snapshot. Resume refused.")
-    if metadata.get("server") and config.get("protocol", {}).get("server") != server_signature(metadata["server"]["props"]["response"]):
+    if "experiment" not in config and metadata.get("server") and config.get("protocol", {}).get("server") != server_signature(metadata["server"]["props"]["response"]):
         raise ValueError("Configured server protocol differs from the saved run.")
     current_runner = sha256_file(Path(__file__))
     previous_runner = metadata.get("active_runner_sha256", metadata["runner_sha256"])
-    if previous_runner not in (current_runner, LEGACY_RUNNER_SHA256, PREVIOUS_RUNNER_SHA256):
+    if previous_runner not in (current_runner, LEGACY_RUNNER_SHA256, PREVIOUS_RUNNER_SHA256, STANDALONE_RUNNER_SHA256, MULTIMODEL_RUNNER_SHA256, SAMPLE_ERROR_RUNNER_SHA256, RECOVERY_RUNNER_SHA256, PENDING_RUNNER_SHA256, CAPACITY_PREDECESSOR_RUNNER_SHA256):
         raise ValueError("Unknown runner revision; automatic compatibility has not been verified.")
     saved_manifest = read_json(directory / "input_manifest.json")
     if metadata["manifest_sha256"] != sha256_file(manifest_path) or metadata["input_manifest_sha256"] != fingerprint(saved_manifest) or saved_manifest != manifest:
@@ -332,17 +477,37 @@ def verify_run(directory, config, protocol, manifest_path, manifest):
     return metadata, previous_runner, current_runner
 
 
+def display_metrics(records, expected_count):
+    """Keep the frozen score policy; unattempted performance is undefined."""
+    metrics = evaluate(records, expected_count)
+    if not records:
+        metrics["per_class"] = {label: {"precision": None, "recall": None, "f1": None, "support": 0}
+                                for label in metrics["per_class"]}
+        for name in ("confusion_matrix", "confusion_matrix_with_failures"):
+            metrics[name] = {**metrics[name], "values": None}
+    return metrics
+
+
 def inspect_run(directory, config, root=ROOT):
     """Read-only end-to-end validation, with counts computed from the journal."""
     protocol = freeze_protocol(config, root)
     manifest_path, manifest = checked_manifest(config, root)
-    metadata, old_runner, current_runner = verify_run(directory, config, protocol, manifest_path, manifest)
-    records, _ = load_journal(directory / "predictions.jsonl", manifest["records"], repair=False)
+    if (directory / "run.json").is_file():
+        metadata, old_runner, current_runner = verify_run(directory, config, protocol, manifest_path, manifest)
+        records, _ = load_journal(directory / "predictions.jsonl", manifest["records"], repair=False)
+    else:
+        if directory.exists() and (not directory.is_dir() or any(p.name != ".run.lock" for p in directory.iterdir())):
+            raise ValueError("Directory has files but no run.json; refusing to treat unknown answers as a pending run.")
+        metadata = {"status": "pending", "sessions": [], "expected_records": len(manifest["records"])}
+        records = []
+        old_runner = current_runner = sha256_file(Path(__file__))
     done = {row["annotation_index"] for row in records}
     pending = [row["annotation_index"] for row in manifest["records"] if row["annotation_index"] not in done]
-    selection = read_json(local_path(root, config["prepared_dir"]) / "selection.json")
+    selection = (manifest if config.get("split") == "val" else read_json(local_path(root, config["prepared_dir"]) / "selection.json"))
     sessions = metadata.get("sessions", [])
+    metrics = display_metrics(records, metadata["expected_records"])
     return {"directory": str(directory), "stored_status": metadata["status"],
+            "status": "completed" if metrics["complete"] else "incomplete" if records else "pending",
             "counts": {"raw_test": manifest["audit"]["records"], "prepared_selection": len(selection["records"]),
                        "prepared_manifest": len(manifest["records"]), "run_queue": len(manifest["records"]),
                        "saved_unique_records": len(done), "remaining": len(pending),
@@ -351,11 +516,13 @@ def inspect_run(directory, config, root=ROOT):
             "stop_reason": metadata.get("stop_reason") or (sessions[-1].get("error") if sessions else None),
             "compatible_runner_upgrade": old_runner != current_runner,
             "frozen_protocol_verified": True, "images_verified": True,
-            "metrics": evaluate(records, metadata["expected_records"])}
+            "metrics": metrics}
 
 
-def run_baseline(directory, config, resume=False, root=ROOT):
-    if (directory / "run.json").exists() and read_json(directory / "run.json").get("kind") != "newsclippings_full_test_baseline":
+def run_baseline(directory, config, resume=False, root=ROOT, stop_request=None):
+    if resume and not (directory / "run.json").is_file():
+        raise FileNotFoundError("Cannot resume a run without run.json; start it with run first.")
+    if (directory / "run.json").exists() and read_json(directory / "run.json").get("kind") not in ("newsclippings_full_test_baseline", "newsclippings_val_compatibility"):
         raise ValueError("This directory is not a baseline run; it will not be modified.")
     protocol = freeze_protocol(config, root)
     manifest_path, manifest = checked_manifest(config, root)
@@ -364,7 +531,9 @@ def run_baseline(directory, config, resume=False, root=ROOT):
         existing, _ = load_journal(directory / "predictions.jsonl", manifest["records"], repair=False)
         if len(existing) == previous["expected_records"]:
             print(json.dumps(evaluate(existing, previous["expected_records"]), indent=2))
-            print("Already complete; no server requests or result writes made.")
+            from .reports import refresh_after_run
+            refresh_after_run(directory, config, root)
+            print("Already complete; no server requests or run-file writes made. Derived reports refreshed if available.")
             return 0
     with exclusive_run(directory):
         if not (directory / "run.json").exists():
@@ -381,7 +550,7 @@ def run_baseline(directory, config, resume=False, root=ROOT):
             log_event(directory, "journal_recovered", **recovery)
         if old_runner != current_runner:
             revision = {"at_utc": now(), "from_sha256": old_runner, "to_sha256": current_runner,
-                        "reason": "Compatible orchestration update; frozen inference/metrics unchanged"}
+                        "reason": "Audited orchestration refactor: explicit model selection and relocated run support; frozen inference, parser, metrics and error recovery unchanged"}
             metadata.setdefault("runner_revisions", []).append(revision)
             metadata["active_runner_sha256"] = current_runner
             log_event(directory, "compatible_runner_upgrade", **revision)
@@ -389,6 +558,8 @@ def run_baseline(directory, config, resume=False, root=ROOT):
         if metrics["complete"]:
             metadata["status"] = "completed"
             save_progress(directory, metadata, records)
+            from .reports import refresh_after_run
+            refresh_after_run(directory, config, root)
             print(f"Already complete: {len(records)}/{metadata['expected_records']}; no server requests made.")
             return 0
         session = {"started_at_utc": now(), "resumed": resume, "already_saved": len(records),
@@ -398,10 +569,22 @@ def run_baseline(directory, config, resume=False, root=ROOT):
         metadata["stop_reason"] = None
         metadata["phase"] = "server_preflight"
         log_event(directory, "session_started", **session)
-        stop = StopRequest()
+        stop = stop_request or StopRequest()
         previous_handler = signal.signal(signal.SIGINT, stop.handle_signal)
         try:
             client, metadata["server"] = check_server(config, root, metadata.get("server"))
+            if "validation" in config and config.get("split") == "test":
+                from .experiments import require_validation, validation_config
+                validation_dir = local_path(root, config["validation"]["run_dir"])
+                # Reuse the fixed smoke implementation; new/resumed tests need
+                # no separate manual smoke command. Existing answers are kept.
+                result = run_baseline(validation_dir, validation_config(config, root),
+                                      resume=(validation_dir / "run.json").exists(), root=root, stop_request=stop)
+                if result == 130 or stop.requested:
+                    raise KeyboardInterrupt
+                if result:
+                    raise RuntimeError("Automatic fixed val compatibility check did not complete; inspect its saved run.")
+                metadata["compatibility_check"] = require_validation(config, root, metadata["server"])
             print(f"Pending: {len(manifest['records']) - len(records)} / {metadata['expected_records']}. Directory: {directory}", flush=True)
             process_pending(directory, metadata, manifest["records"], records, client, stop, root)
         except KeyboardInterrupt:
@@ -431,25 +614,55 @@ def run_baseline(directory, config, resume=False, root=ROOT):
                       remaining=metadata["expected_records"] - len(records), reason=metadata.get("stop_reason"))
             metrics = save_progress(directory, metadata, records)
             print(json.dumps({"directory": str(directory), "status": metadata["status"], **metrics}, indent=2))
+            from .reports import refresh_after_run
+            refresh_after_run(directory, config, root)
         return 0 if metrics["complete"] else 130 if metadata["status"] == "interrupted" else 1
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Frozen full NewsCLIPpings test baseline; no training or VERITE.")
-    parser.add_argument("--config", default="configs/test.json")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--model", choices=tuple(MODEL_ALIASES))
+    selection.add_argument("--config", help="Explicit configs/test_<model_id>.json; no default model.")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("prepare", help="Prepare all 7264 test records without inference.")
     run = commands.add_parser("run", help="Start or resume the complete test baseline.")
-    run.add_argument("--run-dir", default=DEFAULT_RUN)
+    run.add_argument("--run-dir", default=None)
     run.add_argument("--resume", action="store_true")
     status = commands.add_parser("status", help="Verify data, queue and journal; report progress without inference or writes.")
-    status.add_argument("--run-dir", default=DEFAULT_RUN)
+    status.add_argument("--run-dir", default=None)
+    report = commands.add_parser("report", help="Recompute reports/<model_id>/metrics.json from saved answers; no HTTP or run writes.")
+    report.add_argument("--run-dir", default=None)
+    commands.add_parser("smoke", help="Run four fixed val records, separately from the final test (no accuracy tuning).")
+    commands.add_parser("compare", help="Write reports/model_comparison.json and CSV; read-only access to saved runs.")
     args = parser.parse_args(argv)
+    if args.command != "compare" and not (args.model or args.config):
+        parser.error("Choose --model or --config explicitly.")
+    if args.command == "compare" and (args.model or args.config):
+        parser.error("compare reads all three configured experiments; use report for one model.")
     try:
-        sys.stdout.reconfigure(encoding="utf-8")
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8")
         if sys.version_info < (3, 13):
             raise RuntimeError("Baseline requires Python 3.13+ for bounded-memory tar scanning.")
-        config = read_json(local_path(ROOT, args.config))
+        if args.command == "compare":
+            from .reports import compare_results
+            compare_results(ROOT)
+            return 0
+        config = load_model_config(ROOT, model_id=args.model, path=args.config)
+        if hasattr(args, "run_dir"):
+            args.run_dir = args.run_dir or config["run_dir"]
+        if args.command == "smoke":
+            if "validation" not in config:
+                raise ValueError("smoke requires an explicit fixed val subset.")
+            from .experiments import validation_config
+            smoke_config = validation_config(config, ROOT)
+            directory = local_path(ROOT, config["validation"]["run_dir"])
+            result = run_baseline(directory, smoke_config, resume=(directory / "run.json").exists())
+            if result == 0:
+                from .experiments import require_validation
+                require_validation(config, ROOT, read_json(directory / "run.json")["server"])
+            return result
         if args.command == "prepare":
             freeze_protocol(config)
             prepare(ROOT, config)
@@ -460,6 +673,10 @@ def main(argv=None):
                 return run_baseline(directory, config, args.resume)
             elif args.command == "status":
                 print(json.dumps(inspect_run(directory, config), indent=2))
+            elif args.command == "report":
+                from .reports import write_report
+                report = write_report(directory, config, ROOT)
+                print(json.dumps(report, indent=2))
     except (OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

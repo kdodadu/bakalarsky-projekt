@@ -1,4 +1,5 @@
 {
+  "model_id": "smolvlm2_2_2b",
   "annotations": "data/raw/newsclippings/test.json",
   "archive": "data/raw/visualnews/origin.tar",
   "prepared_dir": "data/newsclippings_test",
@@ -9,7 +10,7 @@
   "official_source": "https://huggingface.co/g-luo/news-clippings/blob/main/data/merged_balanced/test.json",
   "seed": 42,
   "base_url": "http://127.0.0.1:8080",
-  "model": "LiquidAI/LFM3-VL-2B-GGUF:Q4_K_M",
+  "model": "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
   "temperature": 0.0,
   "repeat_penalty": 1.0,
   "chat_template_kwargs": {
@@ -23,20 +24,75 @@
     "code_sha256": {
       "src/newsclip_pilot/client.py": "4864bff73635fa635c65aeca3d3eb53787e7bd7a7caf4a67c78c365496d9bccc",
       "src/newsclip_pilot/evaluation.py": "f2db0aa008788a8cae9cd844df91ed881f8af3100831b7def900d0ecef285e7a"
+    }
+  },
+  "run_dir": "results/test_merged_balanced_smolvlm2_2_2b",
+  "server_log": "logs/smolvlm2_2_2b_server.log",
+  "experiment": {
+    "original_model_id": "HuggingFaceTB/SmolVLM2-2.2B-Instruct",
+    "gguf_repository": "ggml-org/SmolVLM2-2.2B-Instruct-GGUF",
+    "revision": "1bc3c9f74ceafd4c8d4411cc9cf188bba3798f91",
+    "gguf": {
+      "filename": "SmolVLM2-2.2B-Instruct-Q4_K_M.gguf",
+      "sha256": "0cf76814555b8665149075b74ab6b5c1d428ea1d3d01c1918c12012e8d7c9f58"
     },
-    "server": {
-      "model_alias": "LiquidAI/LFM3-VL-2B-GGUF:Q4_K_M",
+    "mmproj": [
+      {
+        "filename": "mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",
+        "sha256": "ae07ea1facd07dd3230c4483b63e8cda96c6944ad2481f33d531f79e892dd024"
+      },
+      {
+        "filename": "mmproj-SmolVLM2-2.2B-Instruct-f16.gguf",
+        "sha256": "db9a3a1648cab1ebc3af4a2b0c8145dd8faebf6f7dd7b16e7dc1842229f14ac4"
+      }
+    ],
+    "context_size": 8192,
+    "reasoning_budget": null,
+    "launch_command": [
+      "llama",
+      "serve",
+      "-hf",
+      "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8080",
+      "--ctx-size",
+      "8192",
+      "--parallel",
+      "1",
+      "--log-file",
+      "logs/smolvlm2_2_2b_server.log",
+      "--offline",
+      "--gpu-layers",
+      "all",
+      "--device",
+      "Vulkan1",
+      "--fit",
+      "off",
+      "-lv",
+      "4",
+      "--image-min-tokens",
+      "-1",
+      "--image-max-tokens",
+      "8359"
+    ],
+    "image_processing": {
+      "client_resize": null,
+      "image_min_tokens": -1,
+      "image_max_tokens": 8359,
+      "information_tradeoff": "User-approved reduced internal vision resolution/patch grid for Smol only; original files, transmitted bytes and captions unchanged."
+    },
+    "server_requirements": {
+      "build_info": "b12602-418fe97b5",
       "model_ftype": "Q4_K - Medium",
-      "model_filename": "LFM3-VL-2B-Q4_K_M.gguf",
-      "build_info": "b12282-aa75ff323",
-      "chat_template_sha256": "48ab0f7e16b7e5bf7751c5c1f9a011ff4b36bf1bbed0790a1cea2aec89295d3b",
       "default_generation_settings": {
         "params": {
           "seed": 4294967295,
-          "temperature": 0.10000000149011612,
+          "temperature": 0.800000011920929,
           "dynatemp_range": 0.0,
           "dynatemp_exponent": 1.0,
-          "top_k": 50,
+          "top_k": 40,
           "top_p": 0.949999988079071,
           "min_p": 0.05000000074505806,
           "top_n_sigma": -1.0,
@@ -44,7 +100,7 @@
           "xtc_threshold": 0.10000000149011612,
           "typical_p": 1.0,
           "repeat_last_n": 64,
-          "repeat_penalty": 1.100000023841858,
+          "repeat_penalty": 1.0,
           "presence_penalty": 0.0,
           "frequency_penalty": 0.0,
           "dry_multiplier": 0.0,
@@ -85,8 +141,22 @@
           "backend_sampling": false,
           "lora": []
         },
-        "n_ctx": 128000
+        "n_ctx": 8192
       }
-    }
+    },
+    "capacity_validation_note": "Accepted native-count and RTX 4050 validation; separate from all historical 4096 runs. No accuracy-based tuning."
+  },
+  "validation": {
+    "annotations": "data/raw/newsclippings/val.json",
+    "prepared_manifest": "data/pilot/manifest.json",
+    "groups": 2,
+    "seed": 42,
+    "run_dir": "reports/val_smolvlm2_2_2b"
+  },
+  "capacity_preflight": {
+    "path": "data/capacity/smolvlm2_2_2b_image8359_counts.json",
+    "sha256": "1863bcf565e6de1090bb5b68dd70d9a8b608b2baf7052caea822983c435d0443",
+    "output_tokens": 16,
+    "margin_tokens": 64
   }
 }
