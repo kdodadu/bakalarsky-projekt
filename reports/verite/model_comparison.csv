@@ -1,0 +1,4 @@
+model,status,n_evaluated,n_expected,accuracy,macro_f1,valid_response_rate,invalid_responses,request_errors,complete,majority_baseline_accuracy
+lfm3_vl_2b,complete,1001,1001,0.6433566433566433,0.5671553207905513,1.0,0,0,True,0.6623376623376623
+qwen35_2b,complete,1001,1001,0.6143856143856143,0.6104194394031055,1.0,0,0,True,0.6623376623376623
+smolvlm2_2_2b,complete,1001,1001,0.34965034965034963,0.2724876496692623,1.0,0,0,True,0.6623376623376623

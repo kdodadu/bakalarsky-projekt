@@ -2,34 +2,34 @@
   "schema_version": 1,
   "model": "smolvlm2_2_2b",
   "model_alias": "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
-  "source_run_id": "smolvlm2_2_2b@2026-11-21T17:56:53.072537+00:00",
-  "source_run_directory": "results/test_merged_balanced_smolvlm2_2_2b",
-  "source_run_created_at_utc": "2026-11-21T17:56:53.072537+00:00",
-  "source_predictions_sha256": "85922970413d55aeafb3ea8e7ebfaf4feb672f559630f9887b451a9f239591ac",
-  "dataset": "NewsCLIPpings",
-  "variant": "merged_balanced",
+  "source_run_id": "verite/smolvlm2_2_2b@2026-11-22T19:55:07.370712+00:00",
+  "source_run_directory": "results/verite/smolvlm2_2_2b",
+  "source_run_created_at_utc": "2026-11-22T19:55:07.370712+00:00",
+  "source_predictions_sha256": "315d508022f6a16c00ce1cfa1c5283e388506c3af1614e2262aaf1d5f5740873",
+  "dataset": "VERITE",
+  "variant": "adapted_binary",
   "split": "test",
   "status": "complete",
-  "n_evaluated": 7264,
-  "n_expected": 7264,
+  "n_evaluated": 1001,
+  "n_expected": 1001,
   "complete": true,
-  "accuracy": 0.5030286343612335,
-  "macro_f1": 0.3422693144308341,
-  "valid_response_rate": 0.9994493392070485,
+  "accuracy": 0.34965034965034963,
+  "macro_f1": 0.2724876496692623,
+  "valid_response_rate": 1.0,
   "invalid_responses": 0,
-  "request_errors": 4,
+  "request_errors": 0,
   "per_class": {
     "MATCH": {
-      "precision": 0.5017310621797535,
-      "recall": 0.9975220264317181,
-      "f1": 0.6676494978347001,
-      "support": 3632
+      "precision": 0.3417593528816987,
+      "recall": 1.0,
+      "f1": 0.5094197437829691,
+      "support": 338
     },
     "MISMATCH": {
-      "precision": 0.7948717948717948,
-      "recall": 0.008535242290748899,
-      "f1": 0.016889131026968127,
-      "support": 3632
+      "precision": 1.0,
+      "recall": 0.01809954751131222,
+      "f1": 0.035555555555555556,
+      "support": 663
     }
   },
   "confusion_matrix": {
@@ -43,12 +43,12 @@
     ],
     "values": [
       [
-        3623,
-        8
+        338,
+        0
       ],
       [
-        3598,
-        31
+        651,
+        12
       ]
     ]
   },
@@ -65,24 +65,24 @@
     ],
     "values": [
       [
-        3623,
-        8,
+        338,
         0,
-        1
+        0,
+        0
       ],
       [
-        3598,
-        31,
+        651,
+        12,
         0,
-        3
+        0
       ]
     ]
   },
   "policy": "All attempted records count. INVALID and ERROR are incorrect and false negatives for the true class. Macro-F1 averages MATCH and MISMATCH only. Interrupted runs report attempted-record metrics and complete=false; unattempted records are not scored.",
-  "input_composition_sha256": "2341171f3839a227d64a301bc1b929a7483cad0011cf367c3f395ed146abc4bd",
+  "input_composition_sha256": "03ea668fd78ac6a2d6ec5433a2b1bd188d12900bb9e47a8ac5981ffced63e528",
   "protocol": {
-    "fingerprint": "cb61b55f8ca67fca980004ab1a71c425db4ed213e62ccf568f539238ffee2ab1",
-    "annotations_sha256": "616e06af39fd8afa88d1920e455e4d6ca69e013c9b2fa4dadda593fb0e813aea",
+    "fingerprint": "dbf722976b110873f890252b8f91652d59fa67c54cf76a70ecf0e7f398e582e4",
+    "annotations_sha256": "7f5661860f2e34624c1721710ed37fac5e1e78a4307400530dd587cb0d15a040",
     "prompt_sha256": "1a3a3c3453368a4e253a8bd3a7aff9878e4383a71155d2e9c7ae68c9ce0ecadc",
     "request_text_format": "prompt + newline newline + Caption: + JSON-quoted caption",
     "client_image_preprocessing": "original bytes; no client resizing or recompression",
@@ -105,8 +105,8 @@
       "cache_prompt": false
     },
     "client_parser_evaluation_sha256": {
-      "src/newsclip_pilot/client.py": "4864bff73635fa635c65aeca3d3eb53787e7bd7a7caf4a67c78c365496d9bccc",
-      "src/newsclip_pilot/evaluation.py": "f2db0aa008788a8cae9cd844df91ed881f8af3100831b7def900d0ecef285e7a"
+      "src/multimodal_baseline/client.py": "a50b58035d57fe4397874ef77160750f517c8f932d5d6ab669c94f73824b2cb1",
+      "src/multimodal_baseline/evaluation.py": "f2db0aa008788a8cae9cd844df91ed881f8af3100831b7def900d0ecef285e7a"
     },
     "llama_cpp_build": "b12602-418fe97b5",
     "quantization": "Q4_K - Medium",
@@ -121,12 +121,7 @@
       "image_max_tokens": 8359,
       "information_tradeoff": "User-approved reduced internal vision resolution/patch grid for Smol only; original files, transmitted bytes and captions unchanged."
     },
-    "capacity_preflight": {
-      "path": "data/capacity/smolvlm2_2_2b_image8359_counts.json",
-      "sha256": "1863bcf565e6de1090bb5b68dd70d9a8b608b2baf7052caea822983c435d0443",
-      "output_tokens": 16,
-      "margin_tokens": 64
-    },
+    "capacity_preflight": null,
     "reasoning_budget": null,
     "response_reasoning_format": null,
     "server_default_generation_params": {
@@ -195,21 +190,11 @@
     },
     "repository_revision": "1bc3c9f74ceafd4c8d4411cc9cf188bba3798f91",
     "launch_command": [
-      "llama",
       "serve",
-      "-hf",
-      "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
-      "--host",
-      "127.0.0.1",
-      "--port",
-      "8080",
       "--ctx-size",
       "8192",
       "--parallel",
       "1",
-      "--log-file",
-      "logs/smolvlm2_2_2b_server.log",
-      "--offline",
       "--gpu-layers",
       "all",
       "--device",
@@ -223,9 +208,81 @@
       "--image-max-tokens",
       "8359"
     ],
-    "unknown_metadata": []
+    "unknown_metadata": [],
+    "dataset_protocol": {
+      "dataset": "VERITE",
+      "variant": "adapted_binary",
+      "evaluation_protocol": "adapted binary evaluation",
+      "binary_label_mapping": {
+        "true": "MATCH",
+        "miscaptioned": "MISMATCH",
+        "out-of-context": "MISMATCH"
+      }
+    }
   },
   "planned_protocol": null,
   "historical_metrics_match": true,
-  "historical_metric_differences": {}
+  "historical_metric_differences": {},
+  "evaluation_protocol": "adapted binary evaluation",
+  "binary_label_mapping": {
+    "true": "MATCH",
+    "miscaptioned": "MISMATCH",
+    "out-of-context": "MISMATCH"
+  },
+  "source_csv_sha256": "7f5661860f2e34624c1721710ed37fac5e1e78a4307400530dd587cb0d15a040",
+  "binary_class_distribution": {
+    "MATCH": 338,
+    "MISMATCH": 663
+  },
+  "source_category_counts": {
+    "true": 338,
+    "miscaptioned": 338,
+    "out-of-context": 325
+  },
+  "source_category_breakdown": {
+    "true": {
+      "n_expected": 338,
+      "n_evaluated": 338,
+      "prediction_counts": {
+        "MATCH": 338,
+        "MISMATCH": 0,
+        "INVALID": 0,
+        "ERROR": 0
+      },
+      "binary_accuracy": 1.0,
+      "complete": true
+    },
+    "miscaptioned": {
+      "n_expected": 338,
+      "n_evaluated": 338,
+      "prediction_counts": {
+        "MATCH": 331,
+        "MISMATCH": 7,
+        "INVALID": 0,
+        "ERROR": 0
+      },
+      "binary_accuracy": 0.020710059171597635,
+      "complete": true
+    },
+    "out-of-context": {
+      "n_expected": 325,
+      "n_evaluated": 325,
+      "prediction_counts": {
+        "MATCH": 320,
+        "MISMATCH": 5,
+        "INVALID": 0,
+        "ERROR": 0
+      },
+      "binary_accuracy": 0.015384615384615385,
+      "complete": true
+    }
+  },
+  "majority_baseline": {
+    "prediction": "MISMATCH",
+    "n_correct": 663,
+    "n_expected": 1001,
+    "accuracy": 0.6623376623376623,
+    "description": "Constant MISMATCH majority-class baseline, not a random coin flip."
+  },
+  "interpretation": "Two source mismatch categories are merged; this is not original three-class VERITE classification. Category breakdowns describe binary outcomes only."
 }

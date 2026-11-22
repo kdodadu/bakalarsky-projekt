@@ -14,7 +14,7 @@ import time
 import traceback
 
 from .client import LocalClient, interpret, make_payload
-from .data import image_candidates, input_identity, local_path, prepare, select_test_records, sha256_file
+from .data import dataset_name, image_candidates, input_identity, local_path, prepare, select_test_records, sha256_file, validate_verite_snapshot, verite_records
 from .evaluation import evaluate
 from .storage import log_event, write_json
 
@@ -24,7 +24,7 @@ MODEL_ALIASES = {
     "qwen35_2b": "unsloth/Qwen3.5-2B-GGUF:Q4_K_M",
     "smolvlm2_2_2b": "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
 }
-FROZEN_FILES = ("src/newsclip_pilot/client.py", "src/newsclip_pilot/evaluation.py")
+FROZEN_FILES = ("src/multimodal_baseline/client.py", "src/multimodal_baseline/evaluation.py")
 GENERATION_KEYS = ("seed", "base_url", "model", "temperature", "repeat_penalty",
                    "chat_template_kwargs", "max_tokens", "timeout_seconds")
 SNAPSHOT_EVERY = 25
@@ -48,6 +48,13 @@ CAPACITY_PREDECESSOR_HELPER_SHA256 = "99b1274b96c0621310ee0de051c73c54859f7c190e
 # val gating does not change classification requests, parsing or scoring.
 PRE_SIMPLIFICATION_RUNNER_SHA256 = "6fe2d13457baff80849d3b84337f59f31cc46ecfdb86f79f7343888b2c5b5060"
 PRE_SIMPLIFICATION_HELPER_SHA256 = "6eadcde6461dbfbf8b5e5acfdf2fc07caedb096f4ce6b414e5709de752fa0887"
+PRE_VERITE_RUNNER_SHA256 = "7e97f608342d6643200a1cca2f0ee908df79120b8e6e3acd7bb30d9cb67a97d2"
+# Audited layout-only predecessor. Historical snapshots retain their old paths.
+PRE_LAYOUT_RUNNER_SHA256 = "7dbfd49756a79b085a7e4a8719ed75cc11d78a70c4c06e5c8ce02fec5ea3368a"
+# Audited extension: explicit VERITE image opt-in only. News payload and the
+# strict interpret() parser are unchanged; other client revisions stay rejected.
+PRE_VERITE_CLIENT_SHA256 = "4864bff73635fa635c65aeca3d3eb53787e7bd7a7caf4a67c78c365496d9bccc"
+VERITE_CLIENT_SHA256 = "a50b58035d57fe4397874ef77160750f517c8f932d5d6ab669c94f73824b2cb1"
 
 
 def now():
@@ -62,13 +69,17 @@ def fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
-def load_model_config(root, *, model_id=None, path=None):
-    config = read_json(local_path(root, path or f"configs/test_{model_id}.json"))
+def load_model_config(root, *, model_id=None, path=None, dataset=None):
+    selected_dataset = dataset or "newsclippings"
+    config = read_json(local_path(root, path or f"configs/{selected_dataset}/{model_id}.json"))
     identifier = config.get("model_id")
     if identifier not in MODEL_ALIASES or (model_id and identifier != model_id):
         raise ValueError("Select a configuration with a matching, known model_id.")
     if config.get("model") != MODEL_ALIASES[identifier]:
         raise ValueError("model_id and the expected server model disagree.")
+    if dataset is not None and dataset_name(config) != dataset:
+        raise ValueError("Selected dataset and configuration disagree.")
+    dataset_name(config)
     return config
 
 
@@ -79,9 +90,24 @@ def protocols_match(saved, current):
             return False
     previous = json.loads(json.dumps(saved["contract"]))
     actual = json.loads(json.dumps(current["contract"]))
+    # Only module locations change. Digest values must still match the audited
+    # client/evaluation revisions; never rewrite a historical snapshot on disk.
+    for contract in (previous, actual):
+        hashes = contract.get("code_sha256", {})
+        for name in ("client.py", "evaluation.py"):
+            legacy = "src/newsclip_pilot/" + name
+            current_name = "src/multimodal_baseline/" + name
+            if legacy in hashes:
+                if current_name in hashes:
+                    return False
+                hashes[current_name] = hashes.pop(legacy)
     old_helper = previous.get("orchestration_sha256")
     if old_helper in (PREVIOUS_HELPER_SHA256, TEMPLATE_HELPER_SHA256, CAPACITY_PREDECESSOR_HELPER_SHA256, PRE_SIMPLIFICATION_HELPER_SHA256) and "orchestration_sha256" in actual:
         previous["orchestration_sha256"] = actual["orchestration_sha256"]
+    client = "src/multimodal_baseline/client.py"
+    if (previous.get("code_sha256", {}).get(client) == PRE_VERITE_CLIENT_SHA256
+            and actual.get("code_sha256", {}).get(client) == VERITE_CLIENT_SHA256):
+        previous["code_sha256"][client] = VERITE_CLIENT_SHA256
     from .experiments import experiment_identity
     for contract in (previous, actual):
         contract.pop("capacity_preflight", None)
@@ -95,11 +121,15 @@ def protocols_match(saved, current):
 def config_identity(config):
     from .experiments import experiment_identity
     operational = {"reference_pilot", "protocol", "model_id", "run_dir", "validation", "capacity_preflight",
-                   "annotations", "archive", "prepared_dir", "prompt_file", "server_log", "base_url"}
+                   "annotations", "archive", "images_dir", "prepared_dir", "prompt_file", "server_log", "base_url"}
     result = {key: value for key, value in config.items() if key not in operational}
     if "experiment" in result:
         result["experiment"] = experiment_identity(result["experiment"])
     return result
+
+
+def run_kind(config):
+    return "verite_adapted_binary_baseline" if dataset_name(config) == "verite" else "newsclippings_full_test_baseline"
 
 
 def freeze_protocol(config, root=ROOT):
@@ -119,12 +149,24 @@ def freeze_protocol(config, root=ROOT):
     if "experiment" in config:
         contract["experiment"] = config["experiment"]
         contract["orchestration_sha256"] = sha256_file(Path(__file__).with_name("experiments.py"))
+    if dataset_name(config) == "verite":
+        from .data import VERITE_BINARY_MAPPING
+        if config.get("binary_label_mapping") != VERITE_BINARY_MAPPING:
+            raise ValueError("VERITE adapted binary label mapping differs from the approved protocol.")
+        contract["dataset_protocol"] = {"dataset": "VERITE", "variant": config["variant"],
+                                        "evaluation_protocol": "adapted binary evaluation",
+                                        "binary_label_mapping": config["binary_label_mapping"]}
     return {"contract": contract, "fingerprint": fingerprint(contract)}
 
 
 def checked_manifest(config, root=ROOT):
     manifest_path = local_path(root, config["prepared_dir"]) / "manifest.json"
     manifest = read_json(manifest_path)
+    if dataset_name(config) == "verite":
+        current = verite_records(root, config)
+        if input_identity(manifest) != input_identity(current):
+            raise ValueError("Prepared VERITE inputs/categories/mapping changed; rerun prepare for a new experiment.")
+        return manifest_path, current
     selected = select_test_records(local_path(root, config["annotations"]), seed=config["seed"])
     if selected["annotations_sha256"] != config["annotations_sha256"]:
         raise ValueError("test.json differs from the verified official merged_balanced file.")
@@ -197,7 +239,7 @@ def initialize(directory, config, protocol, manifest_path, manifest, root=ROOT):
         raise FileExistsError("Run is already initialized; use run or run --resume.")
     if any(p.name != ".run.lock" for p in directory.iterdir()):
         raise ValueError("New run directory must be empty.")
-    metadata = {"schema_version": 1, "kind": "newsclippings_full_test_baseline", "split": config.get("split", "test"),
+    metadata = {"schema_version": 1, "kind": run_kind(config), "split": config.get("split", "test"),
                 "created_at_utc": now(), "status": "ready", "complete": False,
                 "n_completed": 0, "expected_records": len(manifest["records"]),
                 "config": config, "protocol": protocol, "prompt": protocol["contract"]["prompt"],
@@ -205,8 +247,10 @@ def initialize(directory, config, protocol, manifest_path, manifest, root=ROOT):
                 "input_identity_sha256": fingerprint(input_identity(manifest)),
                 "python": sys.version, "python_executable": sys.executable, "platform": platform.platform(),
                 "runner_sha256": sha256_file(Path(__file__)),
-                "generation_order": "official annotation order, no sampling or shuffle",
+                "generation_order": "CSV source order and stable source IDs; no sampling or shuffle" if dataset_name(config) == "verite" else "official annotation order, no sampling or shuffle",
                 "sessions": [], "recoveries": [], "server": None}
+    if dataset_name(config) == "verite":
+        metadata["source_annotations_sha256"] = manifest["annotations_sha256"]
     write_json(directory / "input_manifest.json", manifest)
     (directory / "predictions.jsonl").touch(exist_ok=False)
     write_json(directory / "metrics.json", evaluate([], len(manifest["records"])))
@@ -242,8 +286,8 @@ def load_journal(path, manifest_rows, *, repair=True):
             index = result["annotation_index"]
             if index in seen or index not in expected:
                 raise ValueError(f"Duplicate or unexpected saved annotation_index={index}.")
-            for key in ("id", "image_id", "pair_index", "true_label"):
-                if result[key] != expected[index][key]:
+            for key in ("id", "image_id", "pair_index", "true_label", "source_category"):
+                if key in expected[index] and result.get(key) != expected[index][key]:
                     raise ValueError(f"Saved result does not match manifest: {index}, {key}.")
             parsed = interpret(result)
             if any(result[key] != parsed[key] for key in parsed):
@@ -391,16 +435,22 @@ def process_pending(directory, metadata, rows, records, client, stop, root=ROOT,
             metadata["current_annotation_index"] = row["annotation_index"]
             metadata["phase"] = "build_payload"
             text = prompt + "\n\nCaption: " + json.dumps(row["caption"], ensure_ascii=False)
-            payload = make_payload(config, local_path(root, row["image_path"]), text)
             started_at = now()
-            metadata["phase"] = "request"
-            log_event(directory, "request_started", annotation_index=row["annotation_index"], saved=len(records))
-            response = client.request("/v1/chat/completions", payload)
-            result = {"annotation_index": row["annotation_index"], "pair_index": row["pair_index"],
-                      "id": row["id"], "image_id": row["image_id"], "true_label": row["true_label"],
+            local_media_error = False
+            try:
+                payload = make_payload(config, local_path(root, row["image_path"]), text)
+            except (OSError, ValueError) as exc:
+                local_media_error = True
+                response = {"response": None, "raw_http_response": None, "http_status": None,
+                            "error": f"InputError: {type(exc).__name__}: {exc}", "elapsed_seconds": 0.0}
+            else:
+                metadata["phase"] = "request"
+                log_event(directory, "request_started", annotation_index=row["annotation_index"], saved=len(records))
+                response = client.request("/v1/chat/completions", payload)
+            result = {**{key: row[key] for key in ("annotation_index", "pair_index", "id", "image_id", "true_label", "source_category") if key in row},
                       "started_at_utc": started_at, **response, **interpret(response)}
             if result["status"] == "request_error":
-                result["request_error_kind"] = request_error_kind(result)
+                result["request_error_kind"] = "media_decode" if local_media_error else request_error_kind(result)
             metadata["phase"] = "save_response"
             append_result(handle, result)
             records.append(result)
@@ -469,7 +519,7 @@ def check_server(config, root=ROOT, saved_server=None):
 
 def verify_run(directory, config, protocol, manifest_path=None, manifest=None):
     metadata = read_json(directory / "run.json")
-    expected_kind = "newsclippings_full_test_baseline"
+    expected_kind = run_kind(config)
     if metadata.get("kind") != expected_kind:
         raise ValueError("This is not a baseline run; pilot directories are read-only.")
     # These describe storage, a compatibility gate or redundant identification,
@@ -485,7 +535,7 @@ def verify_run(directory, config, protocol, manifest_path=None, manifest=None):
         raise ValueError("Configured server protocol differs from the saved run.")
     current_runner = sha256_file(Path(__file__))
     previous_runner = metadata.get("active_runner_sha256", metadata["runner_sha256"])
-    if previous_runner not in (current_runner, LEGACY_RUNNER_SHA256, PREVIOUS_RUNNER_SHA256, STANDALONE_RUNNER_SHA256, MULTIMODEL_RUNNER_SHA256, SAMPLE_ERROR_RUNNER_SHA256, RECOVERY_RUNNER_SHA256, PENDING_RUNNER_SHA256, CAPACITY_PREDECESSOR_RUNNER_SHA256, PRE_SIMPLIFICATION_RUNNER_SHA256):
+    if previous_runner not in (current_runner, LEGACY_RUNNER_SHA256, PREVIOUS_RUNNER_SHA256, STANDALONE_RUNNER_SHA256, MULTIMODEL_RUNNER_SHA256, SAMPLE_ERROR_RUNNER_SHA256, RECOVERY_RUNNER_SHA256, PENDING_RUNNER_SHA256, CAPACITY_PREDECESSOR_RUNNER_SHA256, PRE_SIMPLIFICATION_RUNNER_SHA256, PRE_VERITE_RUNNER_SHA256, PRE_LAYOUT_RUNNER_SHA256):
         raise ValueError("Unknown runner revision; automatic compatibility has not been verified.")
     saved_manifest = read_json(directory / "input_manifest.json")
     saved_identity = fingerprint(input_identity(saved_manifest))
@@ -499,6 +549,8 @@ def verify_run(directory, config, protocol, manifest_path=None, manifest=None):
     if (config.get("annotations_sha256") is not None
             and saved_manifest.get("annotations_sha256") != config["annotations_sha256"]):
         raise ValueError("Saved input belongs to another annotation file.")
+    if dataset_name(config) == "verite":
+        validate_verite_snapshot(config, saved_manifest)
     return metadata, previous_runner, current_runner
 
 
@@ -523,7 +575,11 @@ def inspect_run(directory, config, root=ROOT):
     else:
         if directory.exists() and (not directory.is_dir() or any(p.name != ".run.lock" for p in directory.iterdir())):
             raise ValueError("Directory has files but no run.json; refusing to treat unknown answers as a pending run.")
-        _, manifest = checked_manifest(config, root)
+        if dataset_name(config) == "verite":
+            manifest = read_json(local_path(root, config["prepared_dir"]) / "manifest.json")
+            validate_verite_snapshot(config, manifest)
+        else:
+            _, manifest = checked_manifest(config, root)
         metadata = {"status": "pending", "sessions": [], "expected_records": len(manifest["records"])}
         records = []
         old_runner = current_runner = sha256_file(Path(__file__))
@@ -540,15 +596,15 @@ def inspect_run(directory, config, root=ROOT):
             "next_annotation_index": pending[0] if pending else None,
             "stop_reason": metadata.get("stop_reason") or (sessions[-1].get("error") if sessions else None),
             "compatible_runner_upgrade": old_runner != current_runner,
-            "frozen_protocol_verified": True, "images_verified": not (directory / "run.json").is_file(),
-            "input_check": "saved snapshot and journal; no external data read" if (directory / "run.json").is_file() else "prepared image bytes and annotations",
+            "frozen_protocol_verified": True, "images_verified": not (directory / "run.json").is_file() and dataset_name(config) != "verite",
+            "input_check": "saved/prepared snapshot and journal; no external data read" if (directory / "run.json").is_file() or dataset_name(config) == "verite" else "prepared image bytes and annotations",
             "metrics": metrics}
 
 
 def run_baseline(directory, config, resume=False, root=ROOT, stop_request=None, output_dir=None):
     if resume and not (directory / "run.json").is_file():
         raise FileNotFoundError("Cannot resume a run without run.json; start it with run first.")
-    if (directory / "run.json").exists() and read_json(directory / "run.json").get("kind") != "newsclippings_full_test_baseline":
+    if (directory / "run.json").exists() and read_json(directory / "run.json").get("kind") != run_kind(config):
         raise ValueError("This directory is not a baseline run; it will not be modified.")
     protocol = freeze_protocol(config, root)
     if resume and (directory / "run.json").exists():
@@ -577,7 +633,7 @@ def run_baseline(directory, config, resume=False, root=ROOT, stop_request=None, 
             log_event(directory, "journal_recovered", **recovery)
         if old_runner != current_runner:
             revision = {"at_utc": now(), "from_sha256": old_runner, "to_sha256": current_runner,
-                        "reason": "Removed mandatory local diagnostics and val gate; inputs compared by content. Frozen inference, parser, scoring and error recovery unchanged."}
+                        "reason": "Audited layout/module migration; content identity, inference requests, strict parser and scoring unchanged."}
             metadata.setdefault("runner_revisions", []).append(revision)
             metadata["active_runner_sha256"] = current_runner
             log_event(directory, "compatible_runner_upgrade", **revision)
@@ -649,27 +705,28 @@ def smoke(config, image, caption, root=ROOT):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Frozen full NewsCLIPpings test baseline; no training or VERITE.")
+    parser = argparse.ArgumentParser(description="Shared local binary baseline on NewsCLIPpings or adapted VERITE; no training.")
+    parser.add_argument("--dataset", choices=("newsclippings", "verite"), help="Default: NewsCLIPpings, or infer from --config.")
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--model", choices=tuple(MODEL_ALIASES))
-    selection.add_argument("--config", help="Explicit configs/test_<model_id>.json; no default model.")
-    for flag in ("annotations", "archive", "prepared-dir", "base-url", "server-log"):
+    selection.add_argument("--config", help="Explicit configs/<dataset>/<model_id>.json; no default model.")
+    for flag in ("annotations", "archive", "images-dir", "prepared-dir", "base-url", "server-log"):
         parser.add_argument("--" + flag, help="Local path/endpoint override; inference identity is preserved.")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("prepare", help="Prepare all 7264 test records without inference.")
+    commands.add_parser("prepare", help="Prepare the selected complete dataset without inference.")
     run = commands.add_parser("run", help="Start or resume the complete test baseline.")
     run.add_argument("--run-dir", default=None)
     run.add_argument("--resume", action="store_true")
     run.add_argument("--output-dir", help="Optional destination for derived reports; run files stay in run-dir.")
     status = commands.add_parser("status", help="Verify data, queue and journal; report progress without inference or writes.")
     status.add_argument("--run-dir", default=None)
-    report = commands.add_parser("report", help="Recompute reports/<model_id>/metrics.json from saved answers; no HTTP or run writes.")
+    report = commands.add_parser("report", help="Recompute the selected dataset/model report from saved answers; no HTTP or run writes.")
     report.add_argument("--run-dir", default=None)
     report.add_argument("--output-dir", help="Derived report destination (default: reports).")
     smoke_command = commands.add_parser("smoke", help="Optional explicit image/caption check; no dataset or scores.")
     smoke_command.add_argument("--image", required=True)
     smoke_command.add_argument("--caption", required=True)
-    comparison = commands.add_parser("compare", help="Write reports/model_comparison.json and CSV; read-only access to saved runs.")
+    comparison = commands.add_parser("compare", help="Write the selected dataset's comparison JSON and CSV; read-only access to saved runs.")
     comparison.add_argument("--output-dir", help="Derived report destination (default: reports).")
     args = parser.parse_args(argv)
     if args.command != "compare" and not (args.model or args.config):
@@ -684,10 +741,10 @@ def main(argv=None):
         if args.command == "compare":
             from .reports import compare_results
             compare_results(ROOT, local_path(ROOT, args.output_dir) if args.output_dir else None,
-                            {key: getattr(args, key) for key in ("annotations", "archive", "prepared_dir") if getattr(args, key) is not None})
+                            {key: getattr(args, key) for key in ("annotations", "archive", "images_dir", "prepared_dir") if getattr(args, key) is not None}, dataset=args.dataset)
             return 0
-        config = load_model_config(ROOT, model_id=args.model, path=args.config)
-        for key in ("annotations", "archive", "prepared_dir", "base_url", "server_log"):
+        config = load_model_config(ROOT, model_id=args.model, path=args.config, dataset=args.dataset)
+        for key in ("annotations", "archive", "images_dir", "prepared_dir", "base_url", "server_log"):
             value = getattr(args, key)
             if value is not None:
                 config[key] = value

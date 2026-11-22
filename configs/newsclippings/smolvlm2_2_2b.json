@@ -1,0 +1,148 @@
+{
+  "model_id": "smolvlm2_2_2b",
+  "annotations": "data/raw/newsclippings/test.json",
+  "archive": "data/raw/visualnews/origin.tar",
+  "prepared_dir": "data/processed/newsclippings/test",
+  "split": "test",
+  "all_records": true,
+  "expected_records": 7264,
+  "annotations_sha256": "616e06af39fd8afa88d1920e455e4d6ca69e013c9b2fa4dadda593fb0e813aea",
+  "official_source": "https://huggingface.co/g-luo/news-clippings/blob/main/data/merged_balanced/test.json",
+  "seed": 42,
+  "base_url": "http://127.0.0.1:8080",
+  "model": "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
+  "temperature": 0.0,
+  "repeat_penalty": 1.0,
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  },
+  "max_tokens": 16,
+  "timeout_seconds": 180,
+  "prompt_file": "configs/prompt.txt",
+  "protocol": {
+    "prompt_sha256": "1a3a3c3453368a4e253a8bd3a7aff9878e4383a71155d2e9c7ae68c9ce0ecadc",
+    "code_sha256": {
+      "src/multimodal_baseline/client.py": "a50b58035d57fe4397874ef77160750f517c8f932d5d6ab669c94f73824b2cb1",
+      "src/multimodal_baseline/evaluation.py": "f2db0aa008788a8cae9cd844df91ed881f8af3100831b7def900d0ecef285e7a"
+    }
+  },
+  "run_dir": "results/newsclippings/smolvlm2_2_2b",
+  "server_log": "logs/smolvlm2_2_2b_server.log",
+  "experiment": {
+    "original_model_id": "HuggingFaceTB/SmolVLM2-2.2B-Instruct",
+    "gguf_repository": "ggml-org/SmolVLM2-2.2B-Instruct-GGUF",
+    "revision": "1bc3c9f74ceafd4c8d4411cc9cf188bba3798f91",
+    "gguf": {
+      "filename": "SmolVLM2-2.2B-Instruct-Q4_K_M.gguf",
+      "sha256": "0cf76814555b8665149075b74ab6b5c1d428ea1d3d01c1918c12012e8d7c9f58"
+    },
+    "mmproj": [
+      {
+        "filename": "mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",
+        "sha256": "ae07ea1facd07dd3230c4483b63e8cda96c6944ad2481f33d531f79e892dd024"
+      },
+      {
+        "filename": "mmproj-SmolVLM2-2.2B-Instruct-f16.gguf",
+        "sha256": "db9a3a1648cab1ebc3af4a2b0c8145dd8faebf6f7dd7b16e7dc1842229f14ac4"
+      }
+    ],
+    "context_size": 8192,
+    "reasoning_budget": null,
+    "launch_command": [
+      "llama",
+      "serve",
+      "-hf",
+      "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8080",
+      "--ctx-size",
+      "8192",
+      "--parallel",
+      "1",
+      "--log-file",
+      "logs/smolvlm2_2_2b_server.log",
+      "--offline",
+      "--gpu-layers",
+      "all",
+      "--device",
+      "Vulkan1",
+      "--fit",
+      "off",
+      "-lv",
+      "4",
+      "--image-min-tokens",
+      "-1",
+      "--image-max-tokens",
+      "8359"
+    ],
+    "image_processing": {
+      "client_resize": null,
+      "image_min_tokens": -1,
+      "image_max_tokens": 8359,
+      "information_tradeoff": "User-approved reduced internal vision resolution/patch grid for Smol only; original files, transmitted bytes and captions unchanged."
+    },
+    "server_requirements": {
+      "build_info": "b12602-418fe97b5",
+      "model_ftype": "Q4_K - Medium",
+      "default_generation_settings": {
+        "params": {
+          "seed": 4294967295,
+          "temperature": 0.800000011920929,
+          "dynatemp_range": 0.0,
+          "dynatemp_exponent": 1.0,
+          "top_k": 40,
+          "top_p": 0.949999988079071,
+          "min_p": 0.05000000074505806,
+          "top_n_sigma": -1.0,
+          "xtc_probability": 0.0,
+          "xtc_threshold": 0.10000000149011612,
+          "typical_p": 1.0,
+          "repeat_last_n": 64,
+          "repeat_penalty": 1.0,
+          "presence_penalty": 0.0,
+          "frequency_penalty": 0.0,
+          "dry_multiplier": 0.0,
+          "dry_base": 1.75,
+          "dry_allowed_length": 2,
+          "dry_penalty_last_n": 64,
+          "mirostat": 0,
+          "mirostat_tau": 5.0,
+          "mirostat_eta": 0.10000000149011612,
+          "adaptive_target": -1.0,
+          "adaptive_decay": 0.8999999761581421,
+          "max_tokens": -1,
+          "n_predict": -1,
+          "n_keep": 0,
+          "n_discard": 0,
+          "ignore_eos": false,
+          "stream": false,
+          "n_probs": 0,
+          "min_keep": 0,
+          "chat_format": "Content-only",
+          "reasoning_format": "none",
+          "reasoning_in_content": false,
+          "generation_prompt": "",
+          "samplers": [
+            "penalties",
+            "dry",
+            "top_n_sigma",
+            "top_k",
+            "typ_p",
+            "top_p",
+            "min_p",
+            "xtc",
+            "temperature"
+          ],
+          "speculative.types": "none",
+          "timings_per_token": false,
+          "post_sampling_probs": false,
+          "backend_sampling": false,
+          "lora": []
+        },
+        "n_ctx": 8192
+      }
+    }
+  }
+}

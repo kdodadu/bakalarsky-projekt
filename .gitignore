@@ -4,6 +4,9 @@ __pycache__/
 data/
 results/
 /reports/val_*/
+/reports/**/input_manifest.json
+/reports/**/run.json
+/reports/**/.run.lock
 models/
 .env
 /scripts/train.py

@@ -35,9 +35,9 @@ def loopback_url(value):
     return urlunsplit(("http", authority, "", "", ""))
 
 
-def image_data_url(path):
+def image_data_url(path, *, allow_verite=False):
     path = Path(path).resolve()
-    if "verite" in (part.lower() for part in path.parts):
+    if not allow_verite and "verite" in (part.lower() for part in path.parts):
         raise ValueError("VERITE must not be used in smoke tests or this pilot.")
     raw = path.read_bytes()
     if raw.startswith(b"\xff\xd8\xff"):
@@ -65,7 +65,7 @@ def make_payload(config, image, text, max_tokens=None):
         "chat_template_kwargs": config["chat_template_kwargs"],
         "stream": False, "cache_prompt": False,
         "messages": [{"role": "user", "content": [
-            {"type": "image_url", "image_url": {"url": image_data_url(image)}},
+            {"type": "image_url", "image_url": {"url": image_data_url(image, allow_verite=config.get("dataset") == "verite")}},
             {"type": "text", "text": text},
         ]}],
     }

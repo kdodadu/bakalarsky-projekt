@@ -13,11 +13,11 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from newsclip_pilot.baseline import (StopRequest, append_result, exclusive_run, freeze_protocol,
+from multimodal_baseline.baseline import (StopRequest, append_result, exclusive_run, freeze_protocol,
                                     load_journal, process_pending, run_baseline, fingerprint)
-from newsclip_pilot.client import interpret
-from newsclip_pilot.data import prepare, select_test_records, write_json
-from newsclip_pilot.evaluation import evaluate
+from multimodal_baseline.client import interpret
+from multimodal_baseline.data import prepare, select_test_records, write_json
+from multimodal_baseline.evaluation import evaluate
 
 
 def response(text="MATCH", error=None):
@@ -128,7 +128,7 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(self.metadata["status"], "stopped_on_request_error")
 
     def test_connection_recovers_without_retrying_failed_example(self):
-        import newsclip_pilot.baseline as module
+        import multimodal_baseline.baseline as module
         self.metadata["config"].update(base_url="http://127.0.0.1:8080", timeout_seconds=180)
         self.metadata["server"] = {"identity": "verified"}
         failure = response(error="URLError: <urlopen error [WinError 10060] connection timeout>")
@@ -149,7 +149,7 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(read_metrics(self.directory)["request_errors"], 1)
 
     def test_connection_recovery_is_bounded_and_does_not_fill_dataset_with_errors(self):
-        import newsclip_pilot.baseline as module
+        import multimodal_baseline.baseline as module
         self.metadata["config"].update(base_url="http://127.0.0.1:8080", timeout_seconds=180)
         self.metadata["server"] = {"identity": "verified"}
         failure = response(error="URLError: [WinError 10060] timeout")
@@ -165,7 +165,7 @@ class ResumeTests(unittest.TestCase):
         self.assertFalse(self.metadata["last_connection_recovery"]["recovered"])
 
     def test_connection_recovery_rejects_another_model(self):
-        import newsclip_pilot.baseline as module
+        import multimodal_baseline.baseline as module
         self.metadata["config"].update(base_url="http://127.0.0.1:8080", timeout_seconds=180)
         self.metadata["server"] = {"identity": "verified"}
         client = FakeClient([response(error="URLError: connection reset")])
@@ -221,8 +221,8 @@ class ResumeTests(unittest.TestCase):
             pass
 
     def test_run_resume_entrypoint_and_completed_noop(self):
-        import newsclip_pilot.baseline as module
-        from newsclip_pilot.data import sha256_file
+        import multimodal_baseline.baseline as module
+        from multimodal_baseline.data import sha256_file
         manifest = {"records": self.rows}
         manifest_path = self.root / "manifest.json"
         write_json(manifest_path, manifest)
@@ -238,7 +238,7 @@ class ResumeTests(unittest.TestCase):
         with patch.object(module, "freeze_protocol", return_value=protocol), \
              patch.object(module, "checked_manifest", return_value=(manifest_path, manifest)), \
              patch.object(module, "check_server", side_effect=[(first, {}), (second, {})]) as probe, \
-             patch("newsclip_pilot.reports.refresh_after_run") as reports:
+             patch("multimodal_baseline.reports.refresh_after_run") as reports:
             self.assertEqual(run_baseline(self.directory, config, root=self.root), 1)
             prefix = self.journal.read_bytes()
             with self.assertRaises(ValueError):
@@ -260,7 +260,7 @@ class ResumeTests(unittest.TestCase):
 
 
     def test_new_run_initializes_without_any_old_results(self):
-        import newsclip_pilot.baseline as module
+        import multimodal_baseline.baseline as module
         directory = self.root / "brand_new"
         manifest = {"records": self.rows}
         manifest_path = self.root / "prepared.json"
@@ -278,8 +278,8 @@ class ResumeTests(unittest.TestCase):
         self.assertNotIn("reference_pilot", metadata["config"])
 
     def test_optional_smoke_uses_only_explicit_input_and_the_frozen_payload(self):
-        import newsclip_pilot.baseline as module
-        from newsclip_pilot.client import make_payload
+        import multimodal_baseline.baseline as module
+        from multimodal_baseline.client import make_payload
         client=FakeClient([response("MISMATCH")])
         protocol={"contract":{"prompt":self.metadata["prompt"]}}
         caption='A supplied caption with "quotes".'
@@ -298,7 +298,7 @@ class ResumeTests(unittest.TestCase):
 
     def test_relocated_data_and_retired_diagnostics_preserve_only_same_inference(self):
         import copy
-        import newsclip_pilot.baseline as module
+        import multimodal_baseline.baseline as module
         manifest={"records":self.rows,"archive":{"path":"old/origin.tar","mtime_ns":1}}
         path=self.root/"prepared.json";write_json(path,manifest)
         config={**self.metadata["config"],"archive":"old/origin.tar","prepared_dir":"old",
@@ -335,7 +335,7 @@ class ResumeTests(unittest.TestCase):
         write_json(metrics_path, evaluate([], 4))
         client = FakeClient([response(), response("MISMATCH"), response(), response("MISMATCH")])
         # A real Windows reader without FILE_SHARE_DELETE reproduces the saved WinError 5.
-        with metrics_path.open("rb"), patch("newsclip_pilot.storage.time.sleep"):
+        with metrics_path.open("rb"), patch("multimodal_baseline.storage.time.sleep"):
             result = process_pending(self.directory, self.metadata, self.rows, [], client, StopRequest(), self.root)
             self.assertEqual(result["n_evaluated"], 4)
             self.assertEqual(read_metrics(self.directory)["n_evaluated"], 0)
@@ -368,8 +368,8 @@ class ResumeTests(unittest.TestCase):
 
 
     def test_audited_legacy_runner_can_resume_without_changing_protocol(self):
-        import newsclip_pilot.baseline as module
-        from newsclip_pilot.data import sha256_file
+        import multimodal_baseline.baseline as module
+        from multimodal_baseline.data import sha256_file
         manifest = {"records": self.rows}
         manifest_path = self.root / "manifest.json"
         write_json(manifest_path, manifest)
@@ -403,9 +403,9 @@ class MappingAndCountTests(unittest.TestCase):
         project=Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)/"checkout";root.mkdir()
-            files=["scripts/baseline.py"]+[f"src/newsclip_pilot/{name}.py" for name in
+            files=["scripts/baseline.py"]+[f"src/multimodal_baseline/{name}.py" for name in
                    ("__init__","baseline","client","data","evaluation","experiments","reports","storage")]
-            files += ["configs/prompt.txt"]+[f"configs/test_{m}.json" for m in ("lfm3_vl_2b","qwen35_2b","smolvlm2_2_2b")]
+            files += ["configs/prompt.txt"]+[f"configs/newsclippings/{m}.json" for m in ("lfm3_vl_2b","qwen35_2b","smolvlm2_2_2b")]
             for relative in files:
                 target=root/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(project/relative,target)
             annotations=root/"data/raw/newsclippings/test.json";annotations.parent.mkdir(parents=True)
@@ -413,7 +413,7 @@ class MappingAndCountTests(unittest.TestCase):
             for _ in range(3632):
                 rows.extend([dict(id=10,image_id=10,falsified=False,source_dataset=0),dict(id=10,image_id=20,falsified=True,source_dataset=0)])
             write_json(annotations,{"annotations":rows,"source_datasets":{"0":"synthetic fixture"}})
-            for path in (root/"configs").glob("test_*.json"):
+            for path in (root/"configs/newsclippings").glob("*.json"):
                 config=json.loads(path.read_text());config["annotations_sha256"]=hashlib.sha256(annotations.read_bytes()).hexdigest();write_json(path,config)
             archive=root/"data/raw/visualnews/origin.tar";archive.parent.mkdir(parents=True)
             image=base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=")
@@ -430,7 +430,7 @@ class MappingAndCountTests(unittest.TestCase):
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,'src')
-from newsclip_pilot import baseline as b
+from multimodal_baseline import baseline as b
 c=b.load_model_config(Path.cwd(),model_id='lfm3_vl_2b')
 if Path('separate_data').exists():c['prepared_dir']='separate_data'
 assert not Path('data/capacity').exists() and not Path('data/pilot').exists()
@@ -459,9 +459,9 @@ print('Clean checkout: prepared 2 images, all mappings checked, no HTTP')
 '''
             execute(["-c",driver])
             moved=root.with_name("relocated");root.rename(moved);root=moved
-            (root/"data/newsclippings_test").rename(root/"separate_data")
+            (root/"data/processed/newsclippings/test").rename(root/"separate_data")
             execute(["-c",driver])
-            self.assertFalse((root/"src/newsclip_pilot/capacity.py").exists())
+            self.assertFalse((root/"src/multimodal_baseline/capacity.py").exists())
 
     def test_caption_by_id_and_image_by_image_id_for_both_pair_relations(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -510,7 +510,7 @@ class FrozenProtocolTests(unittest.TestCase):
 
     def test_native_template_only_allows_one_terminal_lf_removal(self):
         import hashlib
-        from newsclip_pilot.experiments import verify_native_template
+        from multimodal_baseline.experiments import verify_native_template
         embedded = "native\n  template\n"
         pinned = hashlib.sha256(embedded.encode()).hexdigest()
         proof = verify_native_template(embedded, embedded[:-1], pinned)
@@ -526,8 +526,8 @@ class FrozenProtocolTests(unittest.TestCase):
             verify_native_template(embedded + "\n", embedded[:-1])
 
     def test_reports_distinguish_pending_incomplete_and_orphaned_answers(self):
-        import newsclip_pilot.baseline as module
-        from newsclip_pilot.reports import build_report, refresh_after_run
+        import multimodal_baseline.baseline as module
+        from multimodal_baseline.reports import build_report, refresh_after_run
         import csv
         config = module.load_model_config(module.ROOT, model_id="lfm3_vl_2b")
         configs={model:module.load_model_config(module.ROOT,model_id=model) for model in module.MODEL_ALIASES}
@@ -546,8 +546,8 @@ class FrozenProtocolTests(unittest.TestCase):
             write_json(path.parent / "selection.json", manifest)
             with patch.object(module, "checked_manifest", return_value=(path, manifest)), \
                  patch.object(module, "freeze_protocol", return_value=protocol), \
-                 patch("newsclip_pilot.reports.freeze_protocol", return_value=protocol), \
-                 patch("newsclip_pilot.client.LocalClient.request", side_effect=AssertionError("No HTTP")) as http:
+                 patch("multimodal_baseline.reports.freeze_protocol", return_value=protocol), \
+                 patch("multimodal_baseline.client.LocalClient.request", side_effect=AssertionError("No HTTP")) as http:
                 pending = build_report(directory, config, root)
                 self.assertEqual(pending["status"], "pending")
                 self.assertEqual(pending["n_evaluated"], 0)
@@ -567,23 +567,24 @@ class FrozenProtocolTests(unittest.TestCase):
                 self.assertFalse(incomplete["complete"])
                 self.assertFalse(incomplete["historical_metrics_match"])
                 prefix=(directory/"predictions.jsonl").read_bytes()
-                with patch("newsclip_pilot.reports.load_model_config",side_effect=lambda root,model_id:configs[model_id]):
-                    with patch("newsclip_pilot.reports.write_text",side_effect=PermissionError("CSV locked")), \
+                with patch("multimodal_baseline.reports.load_model_config",side_effect=lambda root,model_id,**kwargs:configs[model_id]):
+                    with patch("multimodal_baseline.reports.write_text",side_effect=PermissionError("CSV locked")), \
                          patch("sys.stderr",new=io.StringIO()) as warning:
                         refresh_after_run(directory,config,root)
                     self.assertIn("compare",warning.getvalue())
                     self.assertIn("Saved responses",warning.getvalue())
                     self.assertEqual((directory/"predictions.jsonl").read_bytes(),prefix)
                     refresh_after_run(directory,config,root)
-                    self.assertNotIn(b"\r\r\n",(root/"reports/model_comparison.csv").read_bytes())
-                    comparison=list(csv.DictReader((root/"reports/model_comparison.csv").open(encoding="utf-8")))
+                    self.assertNotIn(b"\r\r\n",(root/"reports/newsclippings/model_comparison.csv").read_bytes())
+                    with (root/"reports/newsclippings/model_comparison.csv").open(encoding="utf-8") as handle:
+                        comparison=list(csv.DictReader(handle))
                     self.assertEqual([r["status"] for r in comparison],["incomplete","pending","pending"])
                     self.assertEqual(comparison[1]["accuracy"],"")
                     with (directory/"predictions.jsonl").open("a",encoding="utf-8") as handle:
                         handle.write("".join(json.dumps(saved(row))+"\n" for row in rows[1:]))
                     complete_bytes=(directory/"predictions.jsonl").read_bytes()
                     refresh_after_run(directory,config,root)
-                    result=json.loads((root/"reports/lfm3_vl_2b/metrics.json").read_text())
+                    result=json.loads((root/"reports/newsclippings/lfm3_vl_2b/metrics.json").read_text())
                     self.assertEqual(result["status"],"complete")
                     self.assertEqual(result["n_evaluated"],7264)
                     self.assertTrue(result["complete"])
@@ -600,19 +601,19 @@ class FrozenProtocolTests(unittest.TestCase):
                 self.assertEqual(http.call_count, 0)
 
     def test_cli_uses_separate_model_defaults_and_keeps_explicit_directory(self):
-        import newsclip_pilot.baseline as module
+        import multimodal_baseline.baseline as module
         for identifier in module.MODEL_ALIASES:
-            file = f"configs/test_{identifier}.json"
+            file = f"configs/newsclippings/{identifier}.json"
             with patch.object(module, "inspect_run", return_value={}) as inspect:
                 self.assertEqual(module.main(["--config", file, "status"]), 0)
-                self.assertEqual(inspect.call_args.args[0].name, f"test_merged_balanced_{identifier}")
+                self.assertEqual(inspect.call_args.args[0].name, identifier)
                 self.assertEqual(module.main(["--model", identifier, "status"]), 0)
-                self.assertEqual(inspect.call_args.args[0].name, f"test_merged_balanced_{identifier}")
+                self.assertEqual(inspect.call_args.args[0].name, identifier)
                 self.assertEqual(module.main(["--config", file, "status", "--run-dir", "results/custom"]), 0)
                 self.assertEqual(inspect.call_args.args[0].name, "custom")
 
     def test_explicit_model_required_and_alias_must_match(self):
-        import newsclip_pilot.baseline as module
+        import multimodal_baseline.baseline as module
         with self.assertRaises(SystemExit), patch("sys.stderr", new=io.StringIO()):
             module.main(["status"])
         with tempfile.TemporaryDirectory() as temporary:
@@ -622,7 +623,7 @@ class FrozenProtocolTests(unittest.TestCase):
                 module.load_model_config(root, path="bad.json")
 
     def test_audited_protocol_upgrade_preserves_snapshots_and_rejects_drift(self):
-        from newsclip_pilot.baseline import PREVIOUS_HELPER_SHA256, protocols_match
+        from multimodal_baseline.baseline import PREVIOUS_HELPER_SHA256, protocols_match
         old = {"orchestration_sha256": PREVIOUS_HELPER_SHA256, "prompt": "fixed", "generation_config": {"max_tokens": 16}}
         new = {**old, "orchestration_sha256": "current verified helper"}
         snapshot = lambda c: {"contract": c, "fingerprint": fingerprint(c)}
@@ -633,11 +634,22 @@ class FrozenProtocolTests(unittest.TestCase):
         for changed in ({**new, "prompt": "changed"}, {**new, "generation_config": {"max_tokens": 32}}):
             self.assertFalse(protocols_match(saved_protocol, snapshot(changed)))
         self.assertFalse(protocols_match({**saved_protocol, "fingerprint": "corrupt"}, snapshot(new)))
+        # A package move changes locations only, never the permitted code bytes.
+        old_code = {"code_sha256": {"src/newsclip_pilot/client.py": "same-client",
+                                    "src/newsclip_pilot/evaluation.py": "same-evaluation"}}
+        new_code = {"code_sha256": {"src/multimodal_baseline/client.py": "same-client",
+                                    "src/multimodal_baseline/evaluation.py": "same-evaluation"}}
+        old_snapshot = snapshot(old_code)
+        before = json.dumps(old_snapshot)
+        self.assertTrue(protocols_match(old_snapshot, snapshot(new_code)))
+        self.assertEqual(json.dumps(old_snapshot), before)
+        new_code["code_sha256"]["src/multimodal_baseline/evaluation.py"] = "changed"
+        self.assertFalse(protocols_match(old_snapshot, snapshot(new_code)))
 
     def test_weight_hash_native_template_context_and_projector_are_checked(self):
         import struct
-        from newsclip_pilot.data import sha256_file
-        from newsclip_pilot.experiments import verify_model_server
+        from multimodal_baseline.data import sha256_file
+        from multimodal_baseline.experiments import verify_model_server
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             def gguf(name):
@@ -658,7 +670,7 @@ class FrozenProtocolTests(unittest.TestCase):
             process = {"command_line": f'llama serve --log-file "{root / "server.log"}" --reasoning-budget 0', "pid": 123}
             def server():
                 return {"props": {"response": json.loads(json.dumps(props))}}
-            with patch("newsclip_pilot.experiments.observe_process", return_value=process):
+            with patch("multimodal_baseline.experiments.observe_process", return_value=process):
                 verified = verify_model_server(config, server(), root)
                 self.assertEqual(verified["identity"]["mmproj_sha256"], sha256_file(projector))
                 experiment["response_reasoning_format"] = "deepseek"
@@ -685,7 +697,7 @@ class FrozenProtocolTests(unittest.TestCase):
                     verify_model_server(config, server(), root)
 
     def test_server_validation_without_results_and_relocated_weights(self):
-        import newsclip_pilot.baseline as module
+        import multimodal_baseline.baseline as module
         props = dict(model_alias="fixture", model_ftype="Q4", model_path="another/place/model.gguf",
                      build_info="build", chat_template="template", default_generation_settings={"params": {"temperature": 0}})
         config = {"base_url": "http://127.0.0.1:8080", "timeout_seconds": 10, "model": "fixture",
@@ -699,7 +711,7 @@ class FrozenProtocolTests(unittest.TestCase):
 
     def test_changed_prompt_or_parser_is_rejected_without_results(self):
         import hashlib
-        from newsclip_pilot.baseline import GENERATION_KEYS, FROZEN_FILES
+        from multimodal_baseline.baseline import GENERATION_KEYS, FROZEN_FILES
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "prompt.txt").write_text("Fixed prompt", encoding="utf-8")
@@ -707,14 +719,14 @@ class FrozenProtocolTests(unittest.TestCase):
             config.update(prompt_file="prompt.txt", protocol={
                 "prompt_sha256": hashlib.sha256(b"Fixed prompt").hexdigest(),
                 "code_sha256": {name: "unchanged" for name in FROZEN_FILES}})
-            with patch("newsclip_pilot.baseline.sha256_file", return_value="unchanged"):
+            with patch("multimodal_baseline.baseline.sha256_file", return_value="unchanged"):
                 freeze_protocol(config, root)
                 self.assertFalse((root / "results").exists())
                 (root / "prompt.txt").write_text("Changed prompt", encoding="utf-8")
                 with self.assertRaises(ValueError):
                     freeze_protocol(config, root)
                 (root / "prompt.txt").write_text("Fixed prompt", encoding="utf-8")
-            with patch("newsclip_pilot.baseline.sha256_file", return_value="changed"):
+            with patch("multimodal_baseline.baseline.sha256_file", return_value="changed"):
                 with self.assertRaises(ValueError):
                     freeze_protocol(config, root)
 

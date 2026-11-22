@@ -1,16 +1,12 @@
 {
-  "model_id": "smolvlm2_2_2b",
-  "annotations": "data/raw/newsclippings/test.json",
-  "archive": "data/raw/visualnews/origin.tar",
-  "prepared_dir": "data/newsclippings_test",
+  "model_id": "qwen35_2b",
+  "annotations": "data/raw/verite/VERITE.csv",
+  "prepared_dir": "data/processed/verite",
   "split": "test",
-  "all_records": true,
-  "expected_records": 7264,
-  "annotations_sha256": "616e06af39fd8afa88d1920e455e4d6ca69e013c9b2fa4dadda593fb0e813aea",
-  "official_source": "https://huggingface.co/g-luo/news-clippings/blob/main/data/merged_balanced/test.json",
+  "expected_records": 1001,
   "seed": 42,
   "base_url": "http://127.0.0.1:8080",
-  "model": "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
+  "model": "unsloth/Qwen3.5-2B-GGUF:Q4_K_M",
   "temperature": 0.0,
   "repeat_penalty": 1.0,
   "chat_template_kwargs": {
@@ -22,47 +18,53 @@
   "protocol": {
     "prompt_sha256": "1a3a3c3453368a4e253a8bd3a7aff9878e4383a71155d2e9c7ae68c9ce0ecadc",
     "code_sha256": {
-      "src/newsclip_pilot/client.py": "4864bff73635fa635c65aeca3d3eb53787e7bd7a7caf4a67c78c365496d9bccc",
-      "src/newsclip_pilot/evaluation.py": "f2db0aa008788a8cae9cd844df91ed881f8af3100831b7def900d0ecef285e7a"
+      "src/multimodal_baseline/client.py": "a50b58035d57fe4397874ef77160750f517c8f932d5d6ab669c94f73824b2cb1",
+      "src/multimodal_baseline/evaluation.py": "f2db0aa008788a8cae9cd844df91ed881f8af3100831b7def900d0ecef285e7a"
     }
   },
-  "run_dir": "results/test_merged_balanced_smolvlm2_2_2b",
-  "server_log": "logs/smolvlm2_2_2b_server.log",
+  "run_dir": "results/verite/qwen35_2b",
+  "server_log": "logs/verite_qwen35_2b_server.log",
   "experiment": {
-    "original_model_id": "HuggingFaceTB/SmolVLM2-2.2B-Instruct",
-    "gguf_repository": "ggml-org/SmolVLM2-2.2B-Instruct-GGUF",
-    "revision": "1bc3c9f74ceafd4c8d4411cc9cf188bba3798f91",
+    "original_model_id": "Qwen/Qwen3.5-2B",
+    "gguf_repository": "unsloth/Qwen3.5-2B-GGUF",
+    "revision": "f6d5376be1edb4d416d56da11e5397a961aca8ae",
     "gguf": {
-      "filename": "SmolVLM2-2.2B-Instruct-Q4_K_M.gguf",
-      "sha256": "0cf76814555b8665149075b74ab6b5c1d428ea1d3d01c1918c12012e8d7c9f58"
+      "filename": "Qwen3.5-2B-Q4_K_M.gguf",
+      "sha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
     },
     "mmproj": [
       {
-        "filename": "mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",
-        "sha256": "ae07ea1facd07dd3230c4483b63e8cda96c6944ad2481f33d531f79e892dd024"
+        "filename": "mmproj-BF16.gguf",
+        "sha256": "f17196c0d8fc756bc65be60075bd4a359917eee8a438505639511727c585d3c2"
       },
       {
-        "filename": "mmproj-SmolVLM2-2.2B-Instruct-f16.gguf",
-        "sha256": "db9a3a1648cab1ebc3af4a2b0c8145dd8faebf6f7dd7b16e7dc1842229f14ac4"
+        "filename": "mmproj-F16.gguf",
+        "sha256": "7035e9cb8d7c6a9681d07eef9a364783e86ea4cd73faab2eabb4f43a101830c7"
+      },
+      {
+        "filename": "mmproj-F32.gguf",
+        "sha256": "d23b0e7bd6fe4416151838434f6a33a1d5f116a82b35565a11579e37dc80ad78"
       }
     ],
-    "context_size": 8192,
-    "reasoning_budget": null,
+    "context_size": 4352,
+    "reasoning_budget": 0,
     "launch_command": [
       "llama",
       "serve",
       "-hf",
-      "ggml-org/SmolVLM2-2.2B-Instruct-GGUF:Q4_K_M",
+      "unsloth/Qwen3.5-2B-GGUF:Q4_K_M",
       "--host",
       "127.0.0.1",
       "--port",
       "8080",
       "--ctx-size",
-      "8192",
+      "4352",
       "--parallel",
       "1",
+      "--reasoning-budget",
+      "0",
       "--log-file",
-      "logs/smolvlm2_2_2b_server.log",
+      "logs/verite_qwen35_2b_server.log",
       "--offline",
       "--gpu-layers",
       "all",
@@ -75,13 +77,18 @@
       "--image-min-tokens",
       "-1",
       "--image-max-tokens",
-      "8359"
+      "-1"
+    ],
+    "differences_from_lfm": [
+      "Native chat template and native mtmd vision preprocessing for this architecture.",
+      "Context size 4096 instead of historical LFM 128000.",
+      "Qwen reasoning disabled by --reasoning-budget 0 and unchanged enable_thinking=false.",
+      "llama.cpp build is observed and frozen by the val check, not assumed equal to historical LFM."
     ],
     "image_processing": {
       "client_resize": null,
       "image_min_tokens": -1,
-      "image_max_tokens": 8359,
-      "information_tradeoff": "User-approved reduced internal vision resolution/patch grid for Smol only; original files, transmitted bytes and captions unchanged."
+      "image_max_tokens": -1
     },
     "server_requirements": {
       "build_info": "b12602-418fe97b5",
@@ -141,8 +148,26 @@
           "backend_sampling": false,
           "lora": []
         },
-        "n_ctx": 8192
+        "n_ctx": 4352
       }
     }
+  },
+  "dataset": "verite",
+  "variant": "adapted_binary",
+  "images_dir": "data/raw/verite/images",
+  "id_column": "",
+  "expected_source_counts": {
+    "true": 338,
+    "miscaptioned": 338,
+    "out-of-context": 325
+  },
+  "expected_binary_counts": {
+    "MATCH": 338,
+    "MISMATCH": 663
+  },
+  "binary_label_mapping": {
+    "true": "MATCH",
+    "miscaptioned": "MISMATCH",
+    "out-of-context": "MISMATCH"
   }
 }

@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "model": "qwen35_2b",
-  "model_alias": "unsloth/Qwen3.5-2B-GGUF:Q4_K_M",
-  "source_run_id": "qwen35_2b@2026-11-21T18:35:34.067115+00:00",
-  "source_run_directory": "results/test_merged_balanced_qwen35_2b",
-  "source_run_created_at_utc": "2026-11-21T18:35:34.067115+00:00",
-  "source_predictions_sha256": "799fecc08fa659eed5446099ef645bacde76699f59f083720356073c37729c3e",
+  "model": "lfm3_vl_2b",
+  "model_alias": "LiquidAI/LFM3-VL-2B-GGUF:Q4_K_M",
+  "source_run_id": "lfm3_vl_2b@2026-11-21T18:58:20.386773+00:00",
+  "source_run_directory": "results/newsclippings/lfm3_vl_2b",
+  "source_run_created_at_utc": "2026-11-21T18:58:20.386773+00:00",
+  "source_predictions_sha256": "99da5a95da1207e805624860ba30081f8ee3ebd92d1905d339e93a4ab2267240",
   "dataset": "NewsCLIPpings",
   "variant": "merged_balanced",
   "split": "test",
@@ -13,22 +13,22 @@
   "n_evaluated": 7264,
   "n_expected": 7264,
   "complete": true,
-  "accuracy": 0.6799284140969163,
-  "macro_f1": 0.6800169527120697,
+  "accuracy": 0.581635462555066,
+  "macro_f1": 0.5260300241281435,
   "valid_response_rate": 0.9994493392070485,
   "invalid_responses": 0,
   "request_errors": 4,
   "per_class": {
     "MATCH": {
-      "precision": 0.6743876464323749,
-      "recall": 0.6974118942731278,
-      "f1": 0.6857065511640498,
+      "precision": 0.7618629173989455,
+      "recall": 0.2387114537444934,
+      "f1": 0.3635220125786163,
       "support": 3632
     },
     "MISMATCH": {
-      "precision": 0.6866438356164384,
-      "recall": 0.6624449339207048,
-      "f1": 0.6743273542600897,
+      "precision": 0.5485135576608952,
+      "recall": 0.9245594713656388,
+      "f1": 0.6885380356776707,
       "support": 3632
     }
   },
@@ -43,12 +43,12 @@
     ],
     "values": [
       [
-        2533,
-        1098
+        867,
+        2764
       ],
       [
-        1223,
-        2406
+        271,
+        3358
       ]
     ]
   },
@@ -65,14 +65,14 @@
     ],
     "values": [
       [
-        2533,
-        1098,
+        867,
+        2764,
         0,
         1
       ],
       [
-        1223,
-        2406,
+        271,
+        3358,
         0,
         3
       ]
@@ -81,7 +81,7 @@
   "policy": "All attempted records count. INVALID and ERROR are incorrect and false negatives for the true class. Macro-F1 averages MATCH and MISMATCH only. Interrupted runs report attempted-record metrics and complete=false; unattempted records are not scored.",
   "input_composition_sha256": "2341171f3839a227d64a301bc1b929a7483cad0011cf367c3f395ed146abc4bd",
   "protocol": {
-    "fingerprint": "f664cc59965891508bb80c4307e9498dc197eaa59bd47d311c8b16232685b2bc",
+    "fingerprint": "85bffdf2a505d488483353429bd89b6f02d65e0be623195b0d54add13d266f64",
     "annotations_sha256": "616e06af39fd8afa88d1920e455e4d6ca69e013c9b2fa4dadda593fb0e813aea",
     "prompt_sha256": "1a3a3c3453368a4e253a8bd3a7aff9878e4383a71155d2e9c7ae68c9ce0ecadc",
     "request_text_format": "prompt + newline newline + Caption: + JSON-quoted caption",
@@ -89,7 +89,7 @@
     "request_generation": {
       "seed": 42,
       "base_url": "http://127.0.0.1:8080",
-      "model": "unsloth/Qwen3.5-2B-GGUF:Q4_K_M",
+      "model": "LiquidAI/LFM3-VL-2B-GGUF:Q4_K_M",
       "temperature": 0.0,
       "repeat_penalty": 1.0,
       "chat_template_kwargs": {
@@ -112,7 +112,7 @@
     "quantization": "Q4_K - Medium",
     "context_size": 4352,
     "parallel": 1,
-    "chat_template_sha256": "7f0e529032c25183bcd66c7f238da2d377f43be754a94e2725a58c4e16d2ed67",
+    "chat_template_sha256": "48ab0f7e16b7e5bf7751c5c1f9a011ff4b36bf1bbed0790a1cea2aec89295d3b",
     "template_source": "embedded GGUF",
     "native_image_preprocessing": "llama.cpp mtmd for this GGUF/mmproj; differs by architecture; see file metadata and /props",
     "image_processing_settings": {
@@ -121,13 +121,13 @@
       "image_max_tokens": -1
     },
     "capacity_preflight": {
-      "path": "data/capacity/qwen35_2b_counts.json",
-      "sha256": "ff11338a1762ac08dcd09c8f5efe3e0f71e450eb9e47685ecbf2b64086882270",
+      "path": "data/capacity/lfm3_vl_2b_counts.json",
+      "sha256": "47e2a2d0c780413154a8dcad152e3a9cc42477ccf37fef0d5fa292ee2f9cca58",
       "output_tokens": 16,
       "margin_tokens": 64
     },
-    "reasoning_budget": 0,
-    "response_reasoning_format": null,
+    "reasoning_budget": null,
+    "response_reasoning_format": "deepseek",
     "server_default_generation_params": {
       "seed": 4294967295,
       "temperature": 0.800000011920929,
@@ -184,20 +184,21 @@
     },
     "weights": {
       "gguf": {
-        "filename": "Qwen3.5-2B-Q4_K_M.gguf",
-        "sha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
+        "filename": "LFM3-VL-2B-Q4_K_M.gguf",
+        "sha256": "56dac2e192ff0d9ab8507f4f1aeb4aed0463449bbbefaac79497f041c95f21eb"
       },
       "mmproj": {
-        "filename": "mmproj-BF16.gguf",
-        "sha256": "f17196c0d8fc756bc65be60075bd4a359917eee8a438505639511727c585d3c2"
+        "filename": "mmproj-LFM3-VL-2B-Q8_0.gguf",
+        "sha256": "c5c5b58d544a18da919172d2d0368090ea1a4a351b6feb7f8a326a264a5918ab"
       }
     },
-    "repository_revision": "f6d5376be1edb4d416d56da11e5397a961aca8ae",
+    "repository_revision": "1add221a5ea6c047fcf1eaaf2d247939d7cf8849",
     "launch_command": [
       "llama",
       "serve",
       "-hf",
-      "unsloth/Qwen3.5-2B-GGUF:Q4_K_M",
+      "LiquidAI/LFM3-VL-2B-GGUF:Q4_K_M",
+      "--offline",
       "--host",
       "127.0.0.1",
       "--port",
@@ -206,11 +207,46 @@
       "4352",
       "--parallel",
       "1",
-      "--reasoning-budget",
+      "--seed",
+      "-1",
+      "--temp",
+      "0.8",
+      "--top-k",
+      "40",
+      "--top-p",
+      "0.95",
+      "--min-p",
+      "0.05",
+      "--typical",
+      "1",
+      "--repeat-last-n",
+      "64",
+      "--repeat-penalty",
+      "1",
+      "--presence-penalty",
       "0",
+      "--frequency-penalty",
+      "0",
+      "--samplers",
+      "penalties;dry;top_n_sigma;top_k;typ_p;top_p;min_p;xtc;temperature",
+      "--dynatemp-range",
+      "0",
+      "--dynatemp-exp",
+      "1",
+      "--xtc-probability",
+      "0",
+      "--xtc-threshold",
+      "0.1",
+      "--dry-multiplier",
+      "0",
+      "--mirostat",
+      "0",
+      "--adaptive-target",
+      "-1",
+      "--reasoning-format",
+      "deepseek",
       "--log-file",
-      "logs/qwen35_2b_server.log",
-      "--offline",
+      "logs/lfm3_vl_2b_server.log",
       "--gpu-layers",
       "all",
       "--device",
